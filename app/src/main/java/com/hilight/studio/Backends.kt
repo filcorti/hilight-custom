@@ -244,6 +244,7 @@ class ShizukuBackend(private val ctx: Context) : Backend {
     private val _state = MutableStateFlow(State.NOT_RUNNING)
     val state: StateFlow<State> = _state.asStateFlow()
     private val main = Handler(Looper.getMainLooper())
+    private val shizukuExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private var service: IHiLightService? = null
     /** Raw text from a failure. Comes from the framework, so it is not translated. */
@@ -732,11 +733,11 @@ class ShizukuBackend(private val ctx: Context) : Backend {
         lastErrorRes = null
         pushSafeIdleTo(candidate, rawStatus)
         onAvailabilityChanged?.invoke()
-        Thread({
+        shizukuExecutor.execute {
             runCatching { candidate.destroy() }.onFailure {
                 Log.w(TAG, "untrackable user-service direct destroy failed", it)
             }
-        }, "hilight-shizuku-untrackable-destroy").apply { isDaemon = true }.start()
+        }
     }
 
     private fun handleExactServiceBinderDeath(binder: IBinder) {
@@ -960,7 +961,7 @@ class ShizukuBackend(private val ctx: Context) : Backend {
         if (attempts >= MAX_DIRECT_DESTROY_ATTEMPTS) return
         if (!directDestroyBinders.add(binder)) return
         directDestroyAttempts[binder] = attempts + 1
-        Thread({
+        shizukuExecutor.execute {
             val result = runCatching { candidate.destroy() }.onFailure {
                 Log.w(TAG, "direct destroy failed; waiting for exact service-binder death", it)
             }
@@ -980,7 +981,7 @@ class ShizukuBackend(private val ctx: Context) : Backend {
                     )
                 }
             }
-        }, "hilight-shizuku-destroy").apply { isDaemon = true }.start()
+        }
     }
 
     private fun quarantineUnexpectedCandidate(candidate: IHiLightService) {
@@ -1100,13 +1101,13 @@ class ShizukuBackend(private val ctx: Context) : Backend {
             main.post { onComplete(false) }
             return
         }
-        Thread({
+        shizukuExecutor.execute {
             val stopped = runCatching {
                 destination.stopAdbRenderers(source.pid, source.rendererInstanceId)
             }.getOrDefault(false)
             if (stopped) Bridge.forgetStatusInstance(source.rendererInstanceId)
             main.post { onComplete(stopped) }
-        }, "hilight-adb-exit").apply { isDaemon = true }.start()
+        }
     }
 
     /** Upgrade path for v1.0.8: exact legacy PID only, then RPC verifies no helper remains. */
@@ -1118,12 +1119,12 @@ class ShizukuBackend(private val ctx: Context) : Backend {
             main.post { onComplete(false) }
             return
         }
-        Thread({
+        shizukuExecutor.execute {
             val stopped = runCatching {
                 destination.stopAdbRenderers(source.pid, "")
             }.getOrDefault(false)
             main.post { onComplete(stopped) }
-        }, "hilight-legacy-adb-exit").apply { isDaemon = true }.start()
+        }
     }
 
     /** A heartbeat-expired identity is never absence proof; the RPC confirms exact process exit. */
@@ -1136,13 +1137,13 @@ class ShizukuBackend(private val ctx: Context) : Backend {
             main.post { onComplete(false) }
             return
         }
-        Thread({
+        shizukuExecutor.execute {
             val stopped = runCatching {
                 destination.stopAdbRenderers(source.pid, instance)
             }.getOrDefault(false)
             if (stopped && instance.isNotEmpty()) Bridge.forgetStatusInstance(instance)
             main.post { onComplete(stopped) }
-        }, "hilight-unresponsive-adb-exit").apply { isDaemon = true }.start()
+        }
     }
 
     fun stopFatalAdbRenderers(source: HelperStatus, onComplete: (Boolean) -> Unit) {
@@ -1154,13 +1155,13 @@ class ShizukuBackend(private val ctx: Context) : Backend {
             main.post { onComplete(false) }
             return
         }
-        Thread({
+        shizukuExecutor.execute {
             val stopped = runCatching {
                 destination.stopAdbRenderers(source.pid, source.rendererInstanceId)
             }.getOrDefault(false)
             if (stopped) Bridge.forgetStatusInstance(source.rendererInstanceId)
             main.post { onComplete(stopped) }
-        }, "hilight-fatal-adb-exit").apply { isDaemon = true }.start()
+        }
     }
 
     /** Removes this exact released Shizuku process and completes only after binder disconnect. */

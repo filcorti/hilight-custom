@@ -69,18 +69,22 @@ object NotificationPeek {
         val isSummary = runCatching { n.flags and Notification.FLAG_GROUP_SUMMARY != 0 }
             .getOrDefault(false)
 
-        // A call, a backup, a media session. The listener already refuses to fire on these, but the
-        // chat picker has to know as well: a messaging app's "Backup in progress" has a title like
-        // any other notification, and would otherwise be offered as a chat to put a colour on.
-        val ongoing = runCatching {
-            n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE) != 0
+        // 1. Rileva se è una chiamata
+        val isCall = runCatching {
+            val isCallCategory = n.category == Notification.CATEGORY_CALL
+            val isCallStyle = extras?.charSeq(Notification.EXTRA_TEMPLATE)?.contains("CallStyle") == true
+            val hasCallExtra = extras?.containsKey("android.callType") == true ||
+                    extras?.containsKey(Notification.EXTRA_CALL_TYPE) == true
+            isCallCategory || isCallStyle || hasCallExtra
         }.getOrDefault(false)
 
-        // shortcutId has been on Notification since API 26, so at minSdk 37 there is nothing to
-        // guard against. It is also the best key on offer: an opaque per-chat id that survives the
-        // contact being renamed, which no name-based rule ever does.
-        val shortcutId = runCatching { n.shortcutId }.getOrNull().clean()
+        // 2. Ongoing: se è una chiamata NON considerarla ongoing, così il listener non la scarta
+        val ongoing = runCatching {
+            n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE) != 0
+        }.getOrDefault(false) && !isCall
 
+        // shortcutId has been on Notification since API 26...
+        val shortcutId = runCatching { n.shortcutId }.getOrNull().clean()
         // Title and text are filled in whatever the template turns out to be. For a MessagingStyle
         // notification the platform mirrors the newest message into them, so they are never the
         // matcher's first choice — but they are what the "why didn't my rule fire?" screen shows,
@@ -105,6 +109,7 @@ object NotificationPeek {
             isOngoing = ongoing,
             isMessagingStyle = style != null,
             messageStampMs = chat?.stampMs ?: 0L,
+            isCall = isCall,
         )
     }
 

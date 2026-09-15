@@ -50,6 +50,7 @@ class RootBackend(private val ctx: Context) : Backend {
 
     override val transport = Transport.ROOT
     private val main = Handler(Looper.getMainLooper())
+    private val rootExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val _state = MutableStateFlow(State.CHECKING)
     val state: StateFlow<State> = _state.asStateFlow()
 
@@ -82,7 +83,7 @@ class RootBackend(private val ctx: Context) : Backend {
     fun refreshPresence() {
         if (starting || checkingPresence) return
         checkingPresence = true
-        Thread({
+        rootExecutor.execute {
             try {
                 if (_state.value == State.RUNNING) {
                     // An explicit retry may recover a lost renderer without force-closing the app.
@@ -90,7 +91,7 @@ class RootBackend(private val ctx: Context) : Backend {
                     // restart to Store's existing staged-idle and exact PID/instance stop fence.
                     repeat(COLD_STATUS_SAMPLES) { sample ->
                         val current = status()
-                        if (current.alive || !current.identityResolved) return@Thread
+                        if (current.alive || !current.identityResolved) return@execute
                         if (sample + 1 < COLD_STATUS_SAMPLES) {
                             Thread.sleep(COLD_STATUS_SAMPLE_INTERVAL_MS)
                         }
@@ -104,14 +105,14 @@ class RootBackend(private val ctx: Context) : Backend {
             } finally {
                 checkingPresence = false
             }
-        }, "hilight-root-check").apply { isDaemon = true }.start()
+        }
     }
 
     /** Starts only after Store has staged an output-disabled state with [stagedRevision]. */
     fun ensureStarted(stagedRevision: Long, onComplete: (Boolean) -> Unit) {
         if (starting) return
         starting = true
-        Thread({
+        rootExecutor.execute {
             var ok = false
             try {
                 update(State.REQUESTING)
@@ -119,7 +120,7 @@ class RootBackend(private val ctx: Context) : Backend {
                 if (identity.code != 0 || !identity.output.contains("uid=0")) {
                     lastError = "Root permission was not granted"
                     update(State.DENIED)
-                    return@Thread
+                    return@execute
                 }
 
                 update(State.STARTING)
@@ -144,7 +145,7 @@ class RootBackend(private val ctx: Context) : Backend {
                         ok = true
                         lastError = null
                         update(State.RUNNING)
-                        return@Thread
+                        return@execute
                     }
                     Thread.sleep(100)
                 }
@@ -158,12 +159,12 @@ class RootBackend(private val ctx: Context) : Backend {
                 val result = ok || _state.value == State.RUNNING
                 main.post { onComplete(result) }
             }
-        }, "hilight-root-start").apply { isDaemon = true }.start()
+        }
     }
 
     fun stop() {
         val pid = ownedPid.takeIf { it > 0 } ?: status().pid.takeIf { it > 0 } ?: return
-        Thread({
+        rootExecutor.execute {
             val instanceId = ownedInstanceId.ifEmpty { status().rendererInstanceId }
             val stopped = runCatching {
                 runSu(RootCommand.stop(pid, "root", instanceId), PROCESS_EXIT_TIMEOUT_SECONDS)
@@ -178,7 +179,7 @@ class RootBackend(private val ctx: Context) : Backend {
                 lastError = "Could not stop the PID-validated root renderer"
                 update(State.ERROR)
             }
-        }, "hilight-root-stop").apply { isDaemon = true }.start()
+        }
     }
 
     /** Stops a source only after its exact process instance has acknowledged the release revision. */
@@ -211,7 +212,7 @@ class RootBackend(private val ctx: Context) : Backend {
             main.post { onComplete(false) }
             return
         }
-        Thread({
+        rootExecutor.execute {
             val stopped = runCatching {
                 runSu(
                     RootCommand.stop(
@@ -241,7 +242,7 @@ class RootBackend(private val ctx: Context) : Backend {
                 update(rootStateAfterExactStopFailure(source.owner, _state.value))
             }
             main.post { onComplete(stopped) }
-        }, "hilight-root-exit").apply { isDaemon = true }.start()
+        }
     }
 
     private fun cleanupOwned() {

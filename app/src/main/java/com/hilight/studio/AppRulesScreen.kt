@@ -138,9 +138,12 @@ fun AppRulesScreen(store: Store) {
 
     ordered.forEachIndexed { index, rule ->
         key(rule.id) {
+            // OPTIMIZATION: Use MutableTransitionState to ensure the enter animation only runs once 
+            // when the item is first added to the composition, avoiding unnecessary re-animations on recomposition.
+            val visibleState = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
             // cards ease in rather than appearing, staggered down the list
             AnimatedVisibility(
-                visible = true,
+                visibleState = visibleState,
                 enter = fadeIn(tween(220, delayMillis = index * 40)) +
                     slideInVertically(spring(dampingRatio = Spring.DampingRatioLowBouncy)) { it / 6 } +
                     scaleIn(tween(240), initialScale = 0.97f),
@@ -428,6 +431,9 @@ private fun RuleCard(
                             else stringResource(R.string.rules_trigger_foreground_short),
                         )
                     )
+                    if (rule.trigger == Trigger.NOTIFICATION && rule.eventTarget != EventTarget.ALL) {
+                        Caption(if (rule.eventTarget == EventTarget.CALLS_ONLY) "Solo chiamate" else "Solo messaggi")
+                    }
                     if (rule.trigger == Trigger.NOTIFICATION) {
                         // "Matched", not "fired": the match is recorded even when a guard — quiet
                         // hours, the battery floor, the master switch — swallowed the flash, and
@@ -488,6 +494,7 @@ fun AppPickerDialog(
 ) {
     val ctx = LocalContext.current
     var query by remember { mutableStateOf("") }
+    
     val apps by produceState(initialValue = emptyList<InstalledApp>(), alsoOffer, excludePackage) {
         value = withContext(Dispatchers.IO) {
             val pm = ctx.packageManager
@@ -531,7 +538,10 @@ fun AppPickerDialog(
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                val shown = apps.filter { it.label.contains(query, ignoreCase = true) }
+                // Memoize the filtered list to avoid re-calculating on every recomposition (e.g. during scroll)
+                val shown = remember(apps, query) {
+                    apps.filter { it.label.contains(query, ignoreCase = true) }
+                }
                 LazyColumn(Modifier.heightIn(max = 380.dp)) {
                     // a rule that covers every app without one of its own
                     if (excludePackage != AppRule.ANY_APP) {
@@ -575,19 +585,34 @@ fun AppPickerDialog(
     )
 }
 
+// Cache to avoid reloading and converting app icons on every scroll in the LazyColumn, which causes high CPU usage and memory churn.
+private val appIconCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(100)
+
 @Composable
 private fun AppIcon(app: InstalledApp) {
     val ctx = LocalContext.current
-    val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, app.pkg) {
-        val info = app.info ?: return@produceState
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                ctx.packageManager.getApplicationIcon(info).toBitmap(80, 80).asImageBitmap()
-            }.getOrNull()
+    val cached = appIconCache.get(app.pkg)
+    
+    if (cached != null) {
+        // OPTIMIZATION: Fast path to avoid launching coroutines during LazyColumn scroll
+        // for items whose icons are already cached, reducing CPU overhead and GC churn.
+        Box(Modifier.size(32.dp)) {
+            Image(cached, contentDescription = null, modifier = Modifier.size(32.dp))
         }
-    }
-    Box(Modifier.size(32.dp)) {
-        bmp?.let { Image(it, contentDescription = null, modifier = Modifier.size(32.dp)) }
+    } else {
+        val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, app.pkg) {
+            val info = app.info ?: return@produceState
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bitmap = ctx.packageManager.getApplicationIcon(info).toBitmap(80, 80).asImageBitmap()
+                    appIconCache.put(app.pkg, bitmap)
+                    bitmap
+                }.getOrNull()
+            }
+        }
+        Box(Modifier.size(32.dp)) {
+            bmp?.let { Image(it, contentDescription = null, modifier = Modifier.size(32.dp)) }
+        }
     }
 }
 
@@ -673,9 +698,6 @@ private fun RuleEditorDialog(
                 )
 
                 if (r.isConversationRule) {
-                    // A per-chat rule is resolved from a posted notification, so "while open" has
-                    // nothing to read a sender out of. Offering it here would only let the user
-                    // build a rule that can never match.
                     Caption(stringResource(R.string.rules_per_chat_notifications_only))
                     ConversationMatchNote(
                         edited = r,
@@ -683,8 +705,6 @@ private fun RuleEditorDialog(
                         onForgetKey = { r = r.copy(conversationKey = null) },
                     )
                 } else {
-                    // Both labels are read before the selector rather than inside its label lambda,
-                    // which is a plain function and so cannot reach a resource itself.
                     val onNotification = stringResource(R.string.rules_trigger_notification)
                     val whileOpen = stringResource(R.string.rules_trigger_foreground)
                     SegmentedSelector(
@@ -724,6 +744,20 @@ private fun RuleEditorDialog(
                 }
 
                 if (r.trigger == Trigger.NOTIFICATION) {
+                    SegmentedSelector(
+                        options = listOf(EventTarget.ALL, EventTarget.MESSAGES_ONLY, EventTarget.CALLS_ONLY),
+                        selected = r.eventTarget,
+                        label = { target ->
+                            when (target) {
+                                EventTarget.ALL -> "Tutti"
+                                EventTarget.MESSAGES_ONLY -> "Messaggi"
+                                EventTarget.CALLS_ONLY -> "Chiamate"
+                            }
+                        },
+                        onSelect = { r = r.copy(eventTarget = it) },
+                    )
+                    Caption("Scegli se questa luce deve attivarsi per le chat, per le chiamate in arrivo o per entrambe.")
+
                     ToggleRow(stringResource(R.string.rules_ignore_silent), r.ignoreSilent) {
                         r = r.copy(ignoreSilent = it)
                     }
@@ -746,12 +780,15 @@ private fun RuleEditorDialog(
                         }
                         Caption(stringResource(R.string.rules_exclude_app_hint))
                         r.excludedPackages.sorted().forEach { pkg ->
-                            val label = remember(pkg) {
-                                runCatching {
-                                    ctx.packageManager.getApplicationLabel(
-                                        ctx.packageManager.getApplicationInfo(pkg, 0)
-                                    ).toString()
-                                }.getOrDefault(pkg)
+                            // Fetch app label asynchronously to avoid blocking the main thread with PackageManager IPC calls
+                            val label by produceState(pkg, pkg) {
+                                value = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        ctx.packageManager.getApplicationLabel(
+                                            ctx.packageManager.getApplicationInfo(pkg, 0)
+                                        ).toString()
+                                    }.getOrDefault(pkg)
+                                }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(label, modifier = Modifier.weight(1f))
@@ -773,6 +810,16 @@ private fun RuleEditorDialog(
                             Caption(stringResource(R.string.rules_include_groups_hint))
                         }
                     }
+
+                    // --- TOGGLE DOPPIA BUSSATA PER QUALSIASI REGOLA NOTIFICHE ---
+                    ToggleRow(
+                        "Doppia bussata (messaggi a raffica)",
+                        r.knockEnabled,
+                    ) {
+                        r = r.copy(knockEnabled = it)
+                    }
+                    Caption("Aumenta ritmo ed effetto se arrivano più messaggi consecutivi entro 15 secondi.")
+
                     OutlinedTextField(
                         value = r.keyword,
                         onValueChange = { r = r.copy(keyword = it) },
@@ -789,9 +836,9 @@ private fun RuleEditorDialog(
                         extendedMaxMs = Limits.RULE_MAX_MS,
                         unlockLabel = stringResource(R.string.rules_allow_one_minute),
                         warnFirst = stringResource(R.string.rules_duration_warn_first_title) to
-                            stringResource(R.string.rules_duration_warn_first_body),
+                                stringResource(R.string.rules_duration_warn_first_body),
                         warnSecond = stringResource(R.string.rules_duration_warn_second_title) to
-                            stringResource(R.string.rules_duration_warn_second_body),
+                                stringResource(R.string.rules_duration_warn_second_body),
                         onChange = { r = r.copy(durationMs = it) },
                     )
                     ToggleRow(
@@ -802,7 +849,6 @@ private fun RuleEditorDialog(
                     ToggleRow(
                         label = stringResource(R.string.rules_only_face_down),
                         checked = r.onlyWhenFaceDown,
-                        // Keep a restored/copied rule switchable off if this phone lacks the sensor.
                         enabled = faceDownSensorAvailable || r.onlyWhenFaceDown,
                     ) { wanted ->
                         when {
@@ -841,6 +887,7 @@ private fun RuleEditorDialog(
                         }
                     }
                 }
+
                 if (r.pattern.usesSpeed) {
                     PixelSlider(
                         stringResource(R.string.rules_time_per_cycle),
@@ -872,14 +919,11 @@ private fun RuleEditorDialog(
                     }
                 }
 
-                // Last in the column, so it is the final thing read before Save. The save is not
-                // blocked: replacing a rule is sometimes exactly what the user means, and there is
-                // no way to keep both while they share an id. Only the silence was the problem.
                 if (replacesAnother) {
                     Caption(stringResource(R.string.rules_replace_warning))
                 }
             }
-        },
+        }
     )
 
     if (pickingPreset) {
@@ -933,49 +977,29 @@ private fun RuleEditorDialog(
         )
     }
 }
+        /**
+         * What a per-chat rule matches on, and the way out of a chat id that has gone stale.
+         */
+        @Composable
+        private fun ConversationMatchNote(edited: AppRule, stored: AppRule, onForgetKey: () -> Unit) {
+            val hasKey = !edited.conversationKey.isNullOrBlank()
+            val keyDropped = !hasKey && !stored.conversationKey.isNullOrBlank()
 
-/**
- * What a per-chat rule matches on, and the way out of a chat id that has gone stale.
- *
- * A stored chat id is the better matcher — it survives the contact being renamed — but it is not
- * permanent. Reinstalling the app, restoring a backup, or the OS regenerating a dynamic shortcut all
- * hand the same chat a new id, and the matcher then refuses the notification outright: a key on both
- * sides that differs means a genuinely different chat, which is the right call everywhere except
- * here. The rule goes on looking correct and never fires again, so there has to be a way to say
- * "learn it afresh" without deleting the rule and rebuilding its colour from scratch.
- *
- * [edited] is the rule as this dialog currently has it and [stored] the rule as saved, which is how
- * a cleared key can be reported as pending rather than as a rule that never had one.
- */
-@Composable
-private fun ConversationMatchNote(edited: AppRule, stored: AppRule, onForgetKey: () -> Unit) {
-    val hasKey = !edited.conversationKey.isNullOrBlank()
-    val keyDropped = !hasKey && !stored.conversationKey.isNullOrBlank()
+            Caption(
+                when {
+                    hasKey -> stringResource(R.string.rules_match_by_id)
+                    keyDropped -> stringResource(R.string.rules_match_id_dropped)
+                    else -> stringResource(R.string.rules_match_by_name, edited.label)
+                }
+            )
 
-    Caption(
-        when {
-            hasKey -> stringResource(R.string.rules_match_by_id)
-            keyDropped -> stringResource(R.string.rules_match_id_dropped)
-            else -> stringResource(R.string.rules_match_by_name, edited.label)
-        }
-    )
-
-    /*
-     * The key may only be dropped when a usable name is left behind.
-     *
-     * ConversationMatch.isMatchable on its own is not enough of a guard: it answers true for a rule
-     * with neither key nor name, because such a rule is no longer a conversation rule at all. Saving
-     * that would silently widen a colour meant for one person into one for every notification the app
-     * posts, which is a far worse outcome than a stale id. So the rule must still be about a chat
-     * after the key goes, and that chat's name must still survive normalisation.
-     */
-    if (hasKey) {
-        val withoutKey = edited.copy(conversationKey = null)
-        if (withoutKey.isConversationRule && ConversationMatch.isMatchable(withoutKey)) {
-            TextButton(onClick = onForgetKey) {
-                ButtonLabel(stringResource(R.string.rules_relearn_chat))
+            if (hasKey) {
+                val withoutKey = edited.copy(conversationKey = null)
+                if (withoutKey.isConversationRule && ConversationMatch.isMatchable(withoutKey)) {
+                    TextButton(onClick = onForgetKey) {
+                        ButtonLabel(stringResource(R.string.rules_relearn_chat))
+                    }
+                    Caption(stringResource(R.string.rules_relearn_hint))
+                }
             }
-            Caption(stringResource(R.string.rules_relearn_hint))
         }
-    }
-}

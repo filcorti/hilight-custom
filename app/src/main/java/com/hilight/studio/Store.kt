@@ -543,8 +543,19 @@ class Store private constructor(private val app: Context) {
 
     private var incompatibleShizukuOverlay: SuspendedLifecycle? = null
 
+    private val backgroundExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val powerManager by lazy { app.getSystemService(android.os.PowerManager::class.java) }
+    @Volatile private var cachedBatteryPct: Int = 100
+
     init {
         Bridge.ensureFiles(app)
+        val initialBatteryIntent = app.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        if (initialBatteryIntent != null) {
+            val level = initialBatteryIntent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+            val scale = initialBatteryIntent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+            val charging = initialBatteryIntent.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0
+            cachedBatteryPct = if (level < 0 || scale <= 0) 100 else if (charging) 100 else level * 100 / scale
+        }
         _suppression.value = suppressionNow()
         // cheap clock/battery watch: quiet hours start and battery drops must take effect on their own
         main.post(object : Runnable {
@@ -558,7 +569,16 @@ class Store private constructor(private val app: Context) {
         app.registerReceiver(
             object : android.content.BroadcastReceiver() {
                 override fun onReceive(c: Context?, i: Intent?) {
-                    when (screenLifecycleAction(i?.action, activeAlertScreenOffGated)) {
+                    val action = i?.action
+                    if (action == Intent.ACTION_BATTERY_CHANGED) {
+                        val level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+                        val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+                        val charging = i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0
+                        cachedBatteryPct = if (level < 0 || scale <= 0) 100 else if (charging) 100 else level * 100 / scale
+                        refreshSuppression()
+                        return
+                    }
+                    when (screenLifecycleAction(action, activeAlertScreenOffGated)) {
                         ScreenLifecycleAction.ARM_AND_REFRESH ->
                             refreshSuppression(armOnRelease = true)
                         ScreenLifecycleAction.CANCEL_AND_REFRESH -> {
@@ -580,6 +600,7 @@ class Store private constructor(private val app: Context) {
                 addAction(Intent.ACTION_POWER_CONNECTED)
                 addAction(Intent.ACTION_POWER_DISCONNECTED)
                 addAction(android.os.PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
+                addAction(Intent.ACTION_BATTERY_CHANGED)
             },
         )
         // Whenever Shizuku appears or disappears, re-push: a new user service starts stateless, and
@@ -1021,9 +1042,14 @@ class Store private constructor(private val app: Context) {
     }.getOrNull()
 
     private fun persistPresets() {
-        val a = JSONArray()
-        _presets.value.forEach { a.put(it.toJson()) }
-        prefs.edit().putString("presets", a.toString()).apply()
+        val presetsSnapshot = _presets.value
+        backgroundExecutor.execute {
+            val start = SystemClock.elapsedRealtime()
+            val a = JSONArray()
+            presetsSnapshot.forEach { a.put(it.toJson()) }
+            prefs.edit().putString("presets", a.toString()).apply()
+            Log.d(TAG, "persistPresets took ${SystemClock.elapsedRealtime() - start}ms")
+        }
     }
 
     private fun loadPresets(): List<Preset> =
@@ -1125,7 +1151,11 @@ class Store private constructor(private val app: Context) {
      */
     fun notePeek(info: MessageInfo) {
         onMain {
-            _recentPeeks.value = (listOf(info) + _recentPeeks.value).take(MAX_PEEKS)
+            val current = _recentPeeks.value
+            val next = ArrayList<MessageInfo>(minOf(current.size + 1, MAX_PEEKS))
+            next.add(info)
+            next.addAll(current.take(MAX_PEEKS - 1))
+            _recentPeeks.value = next
         }
     }
 
@@ -1307,16 +1337,26 @@ class Store private constructor(private val app: Context) {
         if (pendingFlush != null) return
         val r = Runnable {
             pendingFlush = null
-            val edit = prefs.edit()
-            if (conversationsDirty) {
-                conversationsDirty = false
-                edit.putString("conversations", conversationsJson())
+            val currentConversations = if (conversationsDirty) _conversations.value else null
+            val currentLastMatch = if (lastMatchDirty) _lastMatch.value else null
+            conversationsDirty = false
+            lastMatchDirty = false
+            backgroundExecutor.execute {
+                val start = SystemClock.elapsedRealtime()
+                val edit = prefs.edit()
+                if (currentConversations != null) {
+                    val a = JSONArray()
+                    currentConversations.forEach { a.put(it.toJson()) }
+                    edit.putString("conversations", a.toString())
+                }
+                if (currentLastMatch != null) {
+                    val o = JSONObject()
+                    currentLastMatch.forEach { (id, ms) -> o.put(id, ms) }
+                    edit.putString("ruleLastMatch", o.toString())
+                }
+                edit.apply()
+                Log.d(TAG, "Background flush took ${SystemClock.elapsedRealtime() - start}ms")
             }
-            if (lastMatchDirty) {
-                lastMatchDirty = false
-                edit.putString("ruleLastMatch", lastMatchJson())
-            }
-            edit.apply()
         }
         pendingFlush = r
         main.postDelayed(r, FLUSH_MS)
@@ -1542,18 +1582,6 @@ class Store private constructor(private val app: Context) {
         releaseAlert()
     }
 
-    /** Battery level from the sticky broadcast — no receiver to keep alive. */
-    private fun batteryPct(): Int {
-        val i = app.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            ?: return 100
-        val level = i.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
-        val scale = i.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
-        val charging = i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0
-        if (level < 0 || scale <= 0) return 100
-        // on the charger there is no reason to hold the array back
-        return if (charging) 100 else level * 100 / scale
-    }
-
     private fun inQuietWindow(): Boolean {
         val calendar = java.util.Calendar.getInstance()
         val nowMin = calendar.get(java.util.Calendar.HOUR_OF_DAY) * 60 + calendar.get(java.util.Calendar.MINUTE)
@@ -1569,11 +1597,11 @@ class Store private constructor(private val app: Context) {
     }
 
     private fun screenOn(): Boolean =
-        app.getSystemService(android.os.PowerManager::class.java)?.isInteractive ?: true
+        powerManager?.isInteractive ?: true
 
     /** Android's own Battery Saver, which the user turns on to make the battery last. */
     private fun powerSaveMode(): Boolean =
-        app.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode ?: false
+        powerManager?.isPowerSaveMode ?: false
 
     /** Only a recent, stable sensor proof may open either face-down gate. */
     fun isFaceDownNow(nowElapsedMs: Long = SystemClock.elapsedRealtime()): Boolean =
@@ -1619,7 +1647,7 @@ class Store private constructor(private val app: Context) {
         saverGuard = _saverGuard.value,
         powerSaveMode = powerSaveMode(),
         batteryGuard = _batteryGuard.value,
-        batteryPct = batteryPct(),
+        batteryPct = cachedBatteryPct,
         batteryMinPct = _batteryMinPct.value,
     )
 
@@ -1891,35 +1919,37 @@ class Store private constructor(private val app: Context) {
         drivingTransport = null
 
         var samplesTaken = 1
-        fun sampleAgain() {
-            if (generation != coldDiscoveryGeneration) return
-            val status = Bridge.readStatus(app)
-            samplesTaken++
-            if (shouldRetryColdBridgeDiscovery(
-                    status,
-                    samplesTaken,
-                    COLD_BRIDGE_DISCOVERY_SAMPLES,
-                )
-            ) {
-                main.postDelayed(::sampleAgain, COLD_BRIDGE_DISCOVERY_INTERVAL_MS)
-                return
-            }
-            val pending = coldDiscoveryPending
-            coldDiscoveryPending = null
-            coldBridgeAbsenceConfirmed = !status.identityResolved && status.pid <= 0
-            // Consume this exactly once. If the last sample is still unresolved but has no cached
-            // identity, the next send may treat it as absence; a cached PID remains quarantined.
-            coldDiscoveryGraceSatisfied = true
-            if (pending != null) {
-                send(
-                    pending.enabled,
-                    pending.alert,
-                    pending.arm,
-                    pending.manualBlackClearRequestId,
-                )
+        val sampleRunnable = object : Runnable {
+            override fun run() {
+                if (generation != coldDiscoveryGeneration) return
+                val status = Bridge.readStatus(app)
+                samplesTaken++
+                if (shouldRetryColdBridgeDiscovery(
+                        status,
+                        samplesTaken,
+                        COLD_BRIDGE_DISCOVERY_SAMPLES,
+                    )
+                ) {
+                    main.postDelayed(this, COLD_BRIDGE_DISCOVERY_INTERVAL_MS)
+                    return
+                }
+                val pending = coldDiscoveryPending
+                coldDiscoveryPending = null
+                coldBridgeAbsenceConfirmed = !status.identityResolved && status.pid <= 0
+                // Consume this exactly once. If the last sample is still unresolved but has no cached
+                // identity, the next send may treat it as absence; a cached PID remains quarantined.
+                coldDiscoveryGraceSatisfied = true
+                if (pending != null) {
+                    send(
+                        pending.enabled,
+                        pending.alert,
+                        pending.arm,
+                        pending.manualBlackClearRequestId,
+                    )
+                }
             }
         }
-        main.postDelayed(::sampleAgain, COLD_BRIDGE_DISCOVERY_INTERVAL_MS)
+        main.postDelayed(sampleRunnable, COLD_BRIDGE_DISCOVERY_INTERVAL_MS)
     }
 
     /** A live legacy bridge must never receive visible state from a newer app contract. */
@@ -2173,63 +2203,65 @@ class Store private constructor(private val app: Context) {
         handoffAwaitingRetry = false
         val generation = handoffGeneration
         val deadline = SystemClock.elapsedRealtime() + POST_EXIT_CLEANUP_TIMEOUT_MS
-        fun awaitCleanup() {
-            if (generation != handoffGeneration || !sourceExitConfirmed ||
-                handoffTarget != to
-            ) return
-            val next = destination.status()
-            val exactDestination = !bridgeDestination ||
-                next.rendererInstanceId == expectedInstance
-            if (exactDestination && next.provesPostExitCleanup(
-                    exactRevision,
-                    exactRequestId,
-                    expectedInstance,
-                )
-            ) {
-                postExitCleanupInFlight = false
-                completeHandoffAfterDestinationCleanup(next)
-                return
-            }
-            if (exactDestination && next.blackClearUnreleasedFatal) {
-                postExitCleanupInFlight = false
-                sourceExitConfirmed = false
-                fatalFencedSource = next
-                handoffSource = to
-                handoffSourceStatus = next
-                handoffShizukuConnectionGeneration = if (to == Transport.SHIZUKU) {
-                    expectedShizukuGeneration
-                } else {
-                    null
+        val cleanupRunnable = object : Runnable {
+            override fun run() {
+                if (generation != handoffGeneration || !sourceExitConfirmed ||
+                    handoffTarget != to
+                ) return
+                val next = destination.status()
+                val exactDestination = !bridgeDestination ||
+                    next.rendererInstanceId == expectedInstance
+                if (exactDestination && next.provesPostExitCleanup(
+                        exactRevision,
+                        exactRequestId,
+                        expectedInstance,
+                    )
+                ) {
+                    postExitCleanupInFlight = false
+                    completeHandoffAfterDestinationCleanup(next)
+                    return
                 }
-                postExitCleanupRequestId = null
-                postExitCleanupRevision = null
-                postExitCleanupDestination = null
-                postExitCleanupDestinationInstanceId = null
-                postExitCleanupShizukuConnectionGeneration = null
-                ++handoffGeneration
-                resumeFatalFencedTermination()
-                return
-            }
-            if (SystemClock.elapsedRealtime() >= deadline) {
-                postExitCleanupInFlight = false
-                handoffAwaitingRetry = true
-                _status.value = next
-                if (next.lastSeenManualBlackClearRequestId < exactRequestId) {
-                    // The document was never observed; re-send the same one-shot id with a fresh
-                    // revision when routing next retries.
-                    postExitCleanupRevision = null
-                } else if (next.lastAcceptedManualBlackClearRequestId != exactRequestId) {
-                    // It was observed but rejected as unsafe. A later terminal renderer needs a new
-                    // id; replaying this consumed id can never arm a cycle.
+                if (exactDestination && next.blackClearUnreleasedFatal) {
+                    postExitCleanupInFlight = false
+                    sourceExitConfirmed = false
+                    fatalFencedSource = next
+                    handoffSource = to
+                    handoffSourceStatus = next
+                    handoffShizukuConnectionGeneration = if (to == Transport.SHIZUKU) {
+                        expectedShizukuGeneration
+                    } else {
+                        null
+                    }
                     postExitCleanupRequestId = null
                     postExitCleanupRevision = null
+                    postExitCleanupDestination = null
+                    postExitCleanupDestinationInstanceId = null
+                    postExitCleanupShizukuConnectionGeneration = null
+                    ++handoffGeneration
+                    resumeFatalFencedTermination()
+                    return
                 }
-                Log.e(TAG, "destination cleanup was not proved; output replay remains fenced")
-                return
+                if (SystemClock.elapsedRealtime() >= deadline) {
+                    postExitCleanupInFlight = false
+                    handoffAwaitingRetry = true
+                    _status.value = next
+                    if (next.lastSeenManualBlackClearRequestId < exactRequestId) {
+                        // The document was never observed; re-send the same one-shot id with a fresh
+                        // revision when routing next retries.
+                        postExitCleanupRevision = null
+                    } else if (next.lastAcceptedManualBlackClearRequestId != exactRequestId) {
+                        // It was observed but rejected as unsafe. A later terminal renderer needs a new
+                        // id; replaying this consumed id can never arm a cycle.
+                        postExitCleanupRequestId = null
+                        postExitCleanupRevision = null
+                    }
+                    Log.e(TAG, "destination cleanup was not proved; output replay remains fenced")
+                    return
+                }
+                main.postDelayed(this, RELEASE_POLL_INTERVAL_MS)
             }
-            main.postDelayed(::awaitCleanup, RELEASE_POLL_INTERVAL_MS)
         }
-        main.post(::awaitCleanup)
+        main.post(cleanupRunnable)
         return true
     }
 
@@ -2574,73 +2606,75 @@ class Store private constructor(private val app: Context) {
             }
         }
 
-        fun awaitAck() {
-            if (generation != handoffGeneration || handoffTarget != to) return
-            if (shizuku.unresolvedIncompatibleRenderer.value) {
-                holdForUnresolvedIncompatibleShizuku()
-                return
-            }
-            val status = backendFor(from).status()
-            val expectedInstance = source.rendererInstanceId.takeIf {
-                from == Transport.ADB || from == Transport.ROOT
-            }
-            val exactSource = status.pid == source.pid && status.owner == source.owner &&
-                (expectedInstance == null || status.rendererInstanceId == expectedInstance)
-            if (exactSource) {
-                val pending = pendingHandoff
-                val requestId = pending?.manualBlackClearRequestId
-                val destinationRequestId = manualCleanupRequestForDestination(requestId, status)
-                if (pending != null && requestId != destinationRequestId) {
-                    pendingHandoff = pending.copy(
-                        manualBlackClearRequestId = destinationRequestId,
-                    )
-                    abandonManualCleanupRequest(requestId)
+        val ackRunnable = object : Runnable {
+            override fun run() {
+                if (generation != handoffGeneration || handoffTarget != to) return
+                if (shizuku.unresolvedIncompatibleRenderer.value) {
+                    holdForUnresolvedIncompatibleShizuku()
+                    return
                 }
-            }
-            if (exactSource && status.blackClearUnreleasedFatal) {
-                when (from) {
-                    Transport.ADB -> when (to) {
-                        Transport.SHIZUKU -> shizuku.stopFatalAdbRenderers(
-                            status,
-                            ::finishAfterExit,
+                val status = backendFor(from).status()
+                val expectedInstance = source.rendererInstanceId.takeIf {
+                    from == Transport.ADB || from == Transport.ROOT
+                }
+                val exactSource = status.pid == source.pid && status.owner == source.owner &&
+                    (expectedInstance == null || status.rendererInstanceId == expectedInstance)
+                if (exactSource) {
+                    val pending = pendingHandoff
+                    val requestId = pending?.manualBlackClearRequestId
+                    val destinationRequestId = manualCleanupRequestForDestination(requestId, status)
+                    if (pending != null && requestId != destinationRequestId) {
+                        pendingHandoff = pending.copy(
+                            manualBlackClearRequestId = destinationRequestId,
                         )
-                        Transport.ROOT -> root.stopFatalRenderer(status, ::finishAfterExit)
-                        else -> finishAfterExit(false)
+                        abandonManualCleanupRequest(requestId)
                     }
-                    Transport.ROOT -> root.stopFatalRenderer(status, ::finishAfterExit)
-                    Transport.SHIZUKU -> shizuku.stopFatalService(status, ::finishAfterExit)
-                    Transport.AUTO -> finishAfterExit(false)
                 }
-                return
+                if (exactSource && status.blackClearUnreleasedFatal) {
+                    when (from) {
+                        Transport.ADB -> when (to) {
+                            Transport.SHIZUKU -> shizuku.stopFatalAdbRenderers(
+                                status,
+                                ::finishAfterExit,
+                            )
+                            Transport.ROOT -> root.stopFatalRenderer(status, ::finishAfterExit)
+                            else -> finishAfterExit(false)
+                        }
+                        Transport.ROOT -> root.stopFatalRenderer(status, ::finishAfterExit)
+                        Transport.SHIZUKU -> shizuku.stopFatalService(status, ::finishAfterExit)
+                        Transport.AUTO -> finishAfterExit(false)
+                    }
+                    return
+                }
+                if (from == Transport.ADB && to == Transport.SHIZUKU && exactSource &&
+                    !status.alive
+                ) {
+                    shizuku.stopUnresponsiveAdbRenderers(status, ::finishAfterExit)
+                    return
+                }
+                if (from == Transport.ADB && to == Transport.SHIZUKU && exactSource &&
+                    status.provesLegacyIdleReceipt(idleRevision)
+                ) {
+                    shizuku.stopLegacyAdbRenderer(status, ::finishAfterExit)
+                    return
+                }
+                if (exactSource && status.provesReleasedRevision(idleRevision, expectedInstance)) {
+                    terminate(status)
+                    return
+                }
+                if (SystemClock.elapsedRealtime() >= deadline) {
+                    Log.w(TAG, "renderer handoff timed out; leaving both outputs disabled")
+                    // Preserve the handoff target/pending output as a hard routing fence. A torn or
+                    // competing status writer cannot turn timeout into permission to replay output.
+                    drivingTransport = null
+                    _status.value = status
+                    handoffAwaitingRetry = true
+                    return
+                }
+                main.postDelayed(this, RELEASE_POLL_INTERVAL_MS)
             }
-            if (from == Transport.ADB && to == Transport.SHIZUKU && exactSource &&
-                !status.alive
-            ) {
-                shizuku.stopUnresponsiveAdbRenderers(status, ::finishAfterExit)
-                return
-            }
-            if (from == Transport.ADB && to == Transport.SHIZUKU && exactSource &&
-                status.provesLegacyIdleReceipt(idleRevision)
-            ) {
-                shizuku.stopLegacyAdbRenderer(status, ::finishAfterExit)
-                return
-            }
-            if (exactSource && status.provesReleasedRevision(idleRevision, expectedInstance)) {
-                terminate(status)
-                return
-            }
-            if (SystemClock.elapsedRealtime() >= deadline) {
-                Log.w(TAG, "renderer handoff timed out; leaving both outputs disabled")
-                // Preserve the handoff target/pending output as a hard routing fence. A torn or
-                // competing status writer cannot turn timeout into permission to replay output.
-                drivingTransport = null
-                _status.value = status
-                handoffAwaitingRetry = true
-                return
-            }
-            main.postDelayed(::awaitAck, RELEASE_POLL_INTERVAL_MS)
         }
-        main.post(::awaitAck)
+        main.post(ackRunnable)
     }
 
     private fun backendFor(transport: Transport): Backend = when (transport) {
@@ -2822,71 +2856,73 @@ class Store private constructor(private val app: Context) {
         val exactSourceIdentity = sourceIdentity ?: HelperStatus(alive = false)
 
         val deadline = SystemClock.elapsedRealtime() + RELEASE_FENCE_TIMEOUT_MS
-        fun awaitRelease() {
-            if (!rootTransition) return
-            if (shizuku.unresolvedIncompatibleRenderer.value) {
-                rootTransition = false
-                holdForUnresolvedIncompatibleShizuku()
-                return
-            }
-            val status = backendFor(source).status()
-            val expectedInstance = exactSourceIdentity.rendererInstanceId.takeIf {
-                source == Transport.ADB || source == Transport.ROOT
-            }
-            val exactSource = status.pid == exactSourceIdentity.pid &&
-                status.owner == exactSourceIdentity.owner &&
-                (expectedInstance == null || status.rendererInstanceId == expectedInstance)
-            if (shouldUseRootValidatedStopPath(source, exactSource, status)) {
-                // RootBackend validates PID/owner/instance through /proc before TERM. Heartbeat
-                // expiry is not release proof, but it is enough identity to use that exact path.
-                launchRoot()
-                return
-            }
-            if (status.rendererStale && (source == Transport.ADB || source == Transport.ROOT)) {
-                // A legacy file-bridge renderer cannot emit a v1.0.9 release fence. RootBackend will
-                // TERM only its PID/owner-validated process before starting the current renderer dark.
-                launchRoot()
-                return
-            }
-            if (exactSource && status.blackClearUnreleasedFatal) {
-                val onStopped: (Boolean) -> Unit = { stopped ->
-                    if (stopped) launchRoot(sourceExitAlreadyConfirmed = true) else {
-                        rootTransition = false
-                        retainRootTakeoverFence(status)
-                    }
+        val releaseRunnable = object : Runnable {
+            override fun run() {
+                if (!rootTransition) return
+                if (shizuku.unresolvedIncompatibleRenderer.value) {
+                    rootTransition = false
+                    holdForUnresolvedIncompatibleShizuku()
+                    return
                 }
-                when (source) {
-                    Transport.SHIZUKU -> shizuku.stopFatalService(status, onStopped)
-                    Transport.ROOT -> root.stopFatalRenderer(status, onStopped)
-                    Transport.ADB -> root.stopFatalRenderer(status, onStopped)
-                    Transport.AUTO -> Unit
+                val status = backendFor(source).status()
+                val expectedInstance = exactSourceIdentity.rendererInstanceId.takeIf {
+                    source == Transport.ADB || source == Transport.ROOT
                 }
-                return
-            }
-            if (exactSource && status.provesReleasedRevision(revision, expectedInstance)) {
-                if (source == Transport.SHIZUKU) {
-                    shizuku.stopReleasedService(status, revision) { exited ->
-                        if (exited) launchRoot(sourceExitAlreadyConfirmed = true) else {
+                val exactSource = status.pid == exactSourceIdentity.pid &&
+                    status.owner == exactSourceIdentity.owner &&
+                    (expectedInstance == null || status.rendererInstanceId == expectedInstance)
+                if (shouldUseRootValidatedStopPath(source, exactSource, status)) {
+                    // RootBackend validates PID/owner/instance through /proc before TERM. Heartbeat
+                    // expiry is not release proof, but it is enough identity to use that exact path.
+                    launchRoot()
+                    return
+                }
+                if (status.rendererStale && (source == Transport.ADB || source == Transport.ROOT)) {
+                    // A legacy file-bridge renderer cannot emit a v1.0.9 release fence. RootBackend will
+                    // TERM only its PID/owner-validated process before starting the current renderer dark.
+                    launchRoot()
+                    return
+                }
+                if (exactSource && status.blackClearUnreleasedFatal) {
+                    val onStopped: (Boolean) -> Unit = { stopped ->
+                        if (stopped) launchRoot(sourceExitAlreadyConfirmed = true) else {
                             rootTransition = false
                             retainRootTakeoverFence(status)
                         }
                     }
-                } else {
-                    // RootBackend stops only this exact helper and confirms that no other bridge
-                    // helper remains before it launches the destination renderer.
-                    launchRoot()
+                    when (source) {
+                        Transport.SHIZUKU -> shizuku.stopFatalService(status, onStopped)
+                        Transport.ROOT -> root.stopFatalRenderer(status, onStopped)
+                        Transport.ADB -> root.stopFatalRenderer(status, onStopped)
+                        Transport.AUTO -> Unit
+                    }
+                    return
                 }
-                return
+                if (exactSource && status.provesReleasedRevision(revision, expectedInstance)) {
+                    if (source == Transport.SHIZUKU) {
+                        shizuku.stopReleasedService(status, revision) { exited ->
+                            if (exited) launchRoot(sourceExitAlreadyConfirmed = true) else {
+                                rootTransition = false
+                                retainRootTakeoverFence(status)
+                            }
+                        }
+                    } else {
+                        // RootBackend stops only this exact helper and confirms that no other bridge
+                        // helper remains before it launches the destination renderer.
+                        launchRoot()
+                    }
+                    return
+                }
+                if (SystemClock.elapsedRealtime() >= deadline) {
+                    Log.w(TAG, "root takeover timed out waiting for renderer release; staying disabled")
+                    rootTransition = false
+                    retainRootTakeoverFence(status)
+                    return
+                }
+                main.postDelayed(this, RELEASE_POLL_INTERVAL_MS)
             }
-            if (SystemClock.elapsedRealtime() >= deadline) {
-                Log.w(TAG, "root takeover timed out waiting for renderer release; staying disabled")
-                rootTransition = false
-                retainRootTakeoverFence(status)
-                return
-            }
-            main.postDelayed(::awaitRelease, RELEASE_POLL_INTERVAL_MS)
         }
-        main.post(::awaitRelease)
+        main.post(releaseRunnable)
     }
 
     fun refreshStatus() {
@@ -3044,9 +3080,14 @@ class Store private constructor(private val app: Context) {
         } ?: emptyList()
 
     private fun saveRules() {
-        val a = JSONArray()
-        _rules.value.forEach { a.put(it.toPrefsJson()) }
-        prefs.edit().putString("rules", a.toString()).apply()
+        val rulesSnapshot = _rules.value
+        backgroundExecutor.execute {
+            val start = SystemClock.elapsedRealtime()
+            val a = JSONArray()
+            rulesSnapshot.forEach { a.put(it.toPrefsJson()) }
+            prefs.edit().putString("rules", a.toString()).apply()
+            Log.d(TAG, "saveRules took ${SystemClock.elapsedRealtime() - start}ms")
+        }
         pruneLastMatch()
     }
 
@@ -3061,9 +3102,14 @@ class Store private constructor(private val app: Context) {
         } ?: emptyList()
 
     private fun savePrivacyRules() {
-        val a = JSONArray()
-        _privacyRules.value.forEach { a.put(it.toPrefsJson()) }
-        prefs.edit().putString("privacyRules", a.toString()).apply()
+        val rulesSnapshot = _privacyRules.value
+        backgroundExecutor.execute {
+            val start = SystemClock.elapsedRealtime()
+            val a = JSONArray()
+            rulesSnapshot.forEach { a.put(it.toPrefsJson()) }
+            prefs.edit().putString("privacyRules", a.toString()).apply()
+            Log.d(TAG, "savePrivacyRules took ${SystemClock.elapsedRealtime() - start}ms")
+        }
     }
 
     private fun loadConversations(): List<ConversationRef> =
@@ -3080,11 +3126,7 @@ class Store private constructor(private val app: Context) {
                 .getOrNull()
         }?.sortedByDescending { it.lastSeenMs } ?: emptyList()
 
-    private fun conversationsJson(): String {
-        val a = JSONArray()
-        _conversations.value.forEach { a.put(it.toJson()) }
-        return a.toString()
-    }
+
 
     private fun loadLastMatch(): Map<String, Long> =
         prefs.getString("ruleLastMatch", null)?.let { raw ->
@@ -3100,11 +3142,7 @@ class Store private constructor(private val app: Context) {
                 .getOrNull()
         } ?: emptyMap()
 
-    private fun lastMatchJson(): String {
-        val o = JSONObject()
-        _lastMatch.value.forEach { (id, ms) -> o.put(id, ms) }
-        return o.toString()
-    }
+
 
     /**
      * Forgets when rules that no longer exist last fired.
@@ -3123,6 +3161,7 @@ class Store private constructor(private val app: Context) {
         }
     }
 
+    @android.annotation.SuppressLint("StaticFieldLeak")
     companion object {
         private const val TAG = "HiLightStore"
 

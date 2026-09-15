@@ -37,6 +37,8 @@ class ForegroundWatcher : Service() {
     @Volatile private var plan = ForegroundWatchPlan(false, false)
     private lateinit var faceDownTracker: FaceDownSensorTracker
 
+    private val usageStatsManager by lazy { getSystemService(UsageStatsManager::class.java) }
+
     /**
      * Set on the main thread when the service is going away.
      *
@@ -147,7 +149,7 @@ class ForegroundWatcher : Service() {
             queriedThroughMs = Long.MIN_VALUE
             return null
         }
-        val usm = getSystemService(UsageStatsManager::class.java) ?: return null
+        val usm = usageStatsManager ?: return null
         val now = System.currentTimeMillis()
         val bootWallTime = now - SystemClock.elapsedRealtime()
         val begin = if (queriedThroughMs == Long.MIN_VALUE) {

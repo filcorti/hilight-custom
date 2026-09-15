@@ -103,6 +103,7 @@ data class MessageInfo(
      * actually a bug worth reporting.
      */
     val readFailed: Boolean = false,
+    val isCall: Boolean = false,
     /** Set from Android notification ranking; unknown ranking preserves existing behavior. */
     val isSilent: Boolean = false,
 ) {
@@ -173,6 +174,9 @@ enum class MatchStrength(val score: Int) {
 
 object ConversationMatch {
 
+    private val NON_ALPHANUMERIC_REGEX = Regex("[^\\p{L}\\p{N}\\s]")
+    private val MULTIPLE_SPACES_REGEX = Regex("\\s+")
+
     /**
      * Names are compared with punctuation, emoji and case removed.
      *
@@ -183,8 +187,8 @@ object ConversationMatch {
     fun normalise(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
         return raw
-            .replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")   // strips emoji, brackets, +, dashes
-            .replace(Regex("\\s+"), " ")
+            .replace(NON_ALPHANUMERIC_REGEX, " ")   // strips emoji, brackets, +, dashes
+            .replace(MULTIPLE_SPACES_REGEX, " ")
             .trim()
             .lowercase()
     }
@@ -270,9 +274,17 @@ object ConversationMatch {
      */
     fun resolveWith(rules: List<AppRule>, info: MessageInfo): Pair<AppRule, MatchStrength>? {
         if (info.isGroupSummary) return null
-        val candidates = rules.filter {
-            it.enabled && it.trigger == Trigger.NOTIFICATION &&
-                !(it.isCatchAll && info.pkg in it.excludedPackages)
+        val candidates = rules.filter { rule ->
+            val eventMatches = when (rule.eventTarget) {
+                EventTarget.ALL -> true
+                EventTarget.MESSAGES_ONLY -> !info.isCall
+                EventTarget.CALLS_ONLY -> info.isCall
+            }
+
+            rule.enabled &&
+                    rule.trigger == Trigger.NOTIFICATION &&
+                    eventMatches &&
+                    !(rule.isCatchAll && info.pkg in rule.excludedPackages)
         }
         fun accepted(rule: AppRule, strength: MatchStrength): Pair<AppRule, MatchStrength>? =
             if (rule.ignoreSilent && info.isSilent) null else rule to strength

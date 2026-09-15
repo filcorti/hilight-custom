@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. Ombra morbida d'appoggio semitrasparente a terra -->
+    <path
+        android:pathData="M34,44 C34,36 74,36 74,44 L74,74 C74,82 34,82 34,74 Z">
+        <gradient
+            android:startX="54"
+            android:startY="36"
+            android:endX="54"
+            android:endY="82"
+            android:type="linear">
+            <item android:offset="0.0" android:color="#00182230" />
+            <item android:offset="1.0" android:color="#33182230" />
+        </gradient>
+    </path>
+
+    <!-- 2. Nastro continuo a H fluido con sfumatura diagonale (Arancio -> Magenta -> Ciano) -->
+    <path
+        android:pathData="M38,32 C38,29 40.5,27 43.5,27 C46.5,27 49,29 49,32 L49,48.5 L59,48.5 L59,32 C59,29 61.5,27 64.5,27 C67.5,27 70,29 70,32 L70,76 C70,79 67.5,81 64.5,81 C61.5,81 59,79 59,76 L59,57.5 L49,57.5 L49,76 C49,79 46.5,81 43.5,81 C40.5,81 38,79 38,76 Z">
+        <gradient
+            android:startX="38"
+            android:startY="27"
+            android:endX="70"
+            android:endY="81"
+            android:type="linear">
+            <!-- Arancio corallo caldo in alto a sinistra -->
+            <item android:offset="0.0" android:color="#FF5722" />
+            <!-- Rosa / Fucsia intermedio -->
+            <item android:offset="0.35" android:color="#E040FB" />
+            <!-- Viola profondo al centro -->
+            <item android:offset="0.65" android:color="#7C4DFF" />
+            <!-- Ciano / Blu elettrico in basso a destra -->
+            <item android:offset="1.0" android:color="#00B0FF" />
+        </gradient>
+    </path>
+
+    <!-- 3. Riflesso volumetrico interno (trasparenza bianca per effetto "tubo di luce / vetro") -->
+    <path
+        android:pathData="M40,33 C40,30.5 41.8,29 43.5,29 C45.2,29 47,30.5 47,33 L47,48 L40,48 Z">
+        <gradient
+            android:startX="43.5"
+            android:startY="29"
+            android:endX="43.5"
+            android:endY="48"
+            android:type="linear">
+            <item android:offset="0.0" android:color="#80FFFFFF" />
+            <item android:offset="1.0" android:color="#00FFFFFF" />
+        </gradient>
+    </path>
+
+    <!-- 4. Primo arco bussata (sfumatura fluida Arancio Pesca -> Magenta) -->
+    <path
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:pathData="M66,21 C74,23 80,29 82,37">
+        <gradient
+            android:startX="66"
+            android:startY="21"
+            android:endX="82"
+            android:endY="37"
+            android:type="linear">
+            <item android:offset="0.0" android:color="#FFAB91" />
+            <item android:offset="1.0" android:color="#EA80FC" />
+        </gradient>
+    </path>
+
+    <!-- 5. Secondo arco bussata (sfumatura fluida Magenta -> Viola neon con trasparenza in coda) -->
+    <path
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M71,15 C82,18 89,26 91,36">
+        <gradient
+            android:startX="71"
+            android:startY="15"
+            android:endX="91"
+            android:endY="36"
+            android:type="linear">
+            <item android:offset="0.0" android:color="#B388FF" />
+            <item android:offset="1.0" android:color="#4D00E5FF" />
+        </gradient>
+    </path>
+</vector>

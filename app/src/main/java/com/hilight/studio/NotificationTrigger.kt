@@ -33,7 +33,13 @@ class NotificationTrigger : NotificationListenerService() {
     private val store by lazy { Store.get(this) }
     private val main = Handler(Looper.getMainLooper())
     private val reminders = PendingNotificationReminders()
-    private val incomingCalls = linkedSetOf<String>()
+    private val incomingCalls = mutableMapOf<String, Long>()
+    private val activeMessages = mutableMapOf<String, MessageInfo>()
+    private val conversationKnocks = object : LinkedHashMap<String, Pair<Long, Int>>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, Int>>): Boolean =
+            size > MAX_TRACKED
+    }
+    private val KNOCK_WINDOW_MS = 15_000L
     private var connected = false
     private var observationScope: CoroutineScope? = null
     private var signalOwner: String? = null
@@ -114,9 +120,14 @@ class NotificationTrigger : NotificationListenerService() {
         // the catch-all rule every time the watcher restarted.
         if (isOwnStatusNotification(sbn)) return
 
-        updateIncomingCall(sbn)
-        if (store.deviceSignals.settings.value.callsEnabled && incoming(sbn)) return
         val info = readMessage(sbn)
+        activeMessages[sbn.key] = info // Cache to avoid reading again during reminders
+
+        // Se NON è una chiamata gestita da una nostra regola WhatsApp/app, lascia il comportamento standard delle chiamate di sistema
+        if (!info.isCall) {
+            updateIncomingCall(sbn)
+            if (store.deviceSignals.settings.value.callsEnabled && incoming(sbn)) return
+        }
         store.notePeek(info)
         store.noteConversation(info)
 
@@ -175,9 +186,49 @@ class NotificationTrigger : NotificationListenerService() {
         val how = ConversationMatch.strength(rule, info)
             ?: if (rule.isCatchAll) MatchStrength.CATCH_ALL else MatchStrength.APP
         val scope = if (rule.isConversationRule) "chat" else "app"
-        Log.i(TAG, "alert for ${info.pkg} rule=$scope match=$how pattern=${rule.pattern.key}")
-        store.fireAlert(rule, owner = "notification:${sbn.key}")
-        store.noteRuleFired(rule, info)
+
+        // --- GESTIONE DOPPIA BUSSATA ---
+        val effectiveRule = if (rule.knockEnabled && !info.isCall) {
+            val chatKey = rule.conversationKey ?: rule.conversationName ?: info.sender.orEmpty()
+            val now = SystemClock.elapsedRealtime()
+
+            val knockLevel = synchronized(conversationKnocks) {
+                val previous = conversationKnocks[chatKey]
+                val level = if (previous != null && (now - previous.first) <= KNOCK_WINDOW_MS) {
+                    (previous.second + 1).coerceAtMost(3)
+                } else {
+                    1
+                }
+                conversationKnocks[chatKey] = Pair(now, level)
+                level
+            }
+
+            when (knockLevel) {
+                2 -> {
+                    // 2° messaggio entro 15s: doppio battito rapido
+                    rule.copy(
+                        pattern = Pattern.HEARTBEAT,
+                        speedMs = 600,
+                        durationMs = 4_000,
+                    )
+                }
+                3 -> {
+                    // 3° messaggio o oltre: effetto dinamico a rimbalzo
+                    rule.copy(
+                        pattern = Pattern.BOUNCE,
+                        speedMs = 400,
+                        durationMs = 6_000,
+                    )
+                }
+                else -> rule // 1° messaggio: usa il colore e pattern base della regola
+            }
+        } else {
+            rule
+        }
+
+        Log.i(TAG, "alert for ${info.pkg} rule=$scope match=$how pattern=${effectiveRule.pattern.key} isCall=${info.isCall}")
+        store.fireAlert(effectiveRule, owner = "notification:${sbn.key}")
+        store.noteRuleFired(effectiveRule, info)
     }
 
     /**
@@ -190,10 +241,11 @@ class NotificationTrigger : NotificationListenerService() {
      */
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         runCatching {
-            val key = NotificationPeek.read(sbn).notifKey
-            if (key.isNotEmpty()) synchronized(handled) { handled.remove(key) }
+            val key = sbn.key
+            if (!key.isNullOrEmpty()) synchronized(handled) { handled.remove(key) }
             reminders.remove(sbn.key)
             incomingCalls.remove(sbn.key)
+            activeMessages.remove(sbn.key)
             store.cancelOwnedAlert("notification:${sbn.key}")
             store.cancelOwnedAlert("reminder:${sbn.key}")
             store.cancelOwnedAlert("call:${sbn.key}")
@@ -212,6 +264,7 @@ class NotificationTrigger : NotificationListenerService() {
         observationScope?.cancel()
         observationScope = null
         clearSignals()
+        activeMessages.clear()
         store.deviceSignals.onInterruptionFilterChanged(INTERRUPTION_FILTER_UNKNOWN)
     }
 
@@ -237,6 +290,10 @@ class NotificationTrigger : NotificationListenerService() {
             if (isOwnStatusNotification(sbn)) continue
             runCatching {
                 val info = readMessage(sbn)
+                activeMessages[sbn.key] = info
+                if (store.deviceSignals.settings.value.callsEnabled && incoming(sbn)) {
+                    incomingCalls[sbn.key] = sbn.postTime
+                }
                 if (!info.isOngoing && !info.isGroupSummary) {
                     val rule = store.ruleForMessage(info)
                     if (rule != null && rule.repeatWhilePending &&
@@ -259,8 +316,8 @@ class NotificationTrigger : NotificationListenerService() {
 
     private fun updateIncomingCall(sbn: StatusBarNotification) {
         if (store.deviceSignals.settings.value.callsEnabled && incoming(sbn)) {
-            incomingCalls.add(sbn.key)
-        } else if (incomingCalls.remove(sbn.key)) store.cancelOwnedAlert("call:${sbn.key}")
+            incomingCalls[sbn.key] = sbn.postTime
+        } else if (incomingCalls.remove(sbn.key) != null) store.cancelOwnedAlert("call:${sbn.key}")
         if (incomingCalls.isNotEmpty()) scheduleTick(immediate = true)
     }
 
@@ -297,15 +354,17 @@ class NotificationTrigger : NotificationListenerService() {
 
     private fun reconcileSignalState() {
         if (!connected || !store.enabled.value) { clearSignals(); return }
-        val active = runCatching { activeNotifications?.toList() }.getOrNull()
-        if (active == null) { clearSignals(); return }
-        val byKey = active.associateBy { it.key }
-        reminders.retain(byKey.keys)
         val settings = store.deviceSignals.settings.value
-        incomingCalls.clear()
-        if (settings.callsEnabled) active.filter(::incoming).forEach { incomingCalls.add(it.key) }
-        val newestCall = active.filter { it.key in incomingCalls }.maxByOrNull { it.postTime }
-        val owner = newestCall?.let { "call:${it.key}" }
+        
+        // If calls are disabled via settings, clear out active calls
+        if (!settings.callsEnabled && incomingCalls.isNotEmpty()) {
+            incomingCalls.keys.forEach { store.cancelOwnedAlert("call:$it") }
+            incomingCalls.clear()
+        }
+
+        val newestCallKey = incomingCalls.maxByOrNull { it.value }?.key
+        val owner = newestCallKey?.let { "call:$it" }
+        
         if (signalOwner != owner) signalOwner?.let(store::cancelOwnedAlert)
         signalOwner = owner
         if (owner != null) {
@@ -319,8 +378,7 @@ class NotificationTrigger : NotificationListenerService() {
         }
         val next = reminders.latest()
         if (next != null) {
-            val sbn = byKey[next.key]
-            val info = sbn?.let { runCatching { readMessage(it) }.getOrNull() }
+            val info = activeMessages[next.key]
             val rule = info?.let(store::ruleForMessage)
             if (rule == null || !rule.repeatWhilePending ||
                 (rule.keyword.isNotBlank() && !matchesKeyword(info, rule.keyword))) {

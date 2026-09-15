@@ -21,6 +21,7 @@ object Bridge {
     const val DIR_NAME = "hilight"
     const val DEVICE_DIR = "/storage/emulated/0/Android/data/com.hilight.studio/files/hilight"
     private val statusCache = BridgeStatusCache()
+    private val writerExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private fun dir(ctx: Context): File =
         File(ctx.getExternalFilesDir(null), DIR_NAME).apply { if (!exists()) mkdirs() }
@@ -102,20 +103,21 @@ object Bridge {
      * then rename, so whichever payload lost the write race was the one promoted and the other push
      * vanished. Only this app writes the state file, so serialising here is enough.
      */
-    @Synchronized
     fun writeState(ctx: Context, json: String) {
-        // Never let a bridge failure take the UI down with it.
-        runCatching {
-            val target = stateFile(ctx)
-            val tmp = File(target.parentFile, target.name + ".tmp")
-            tmp.writeText(json)
-            if (!tmp.renameTo(target)) {
-                // FUSE can refuse the rename; a direct write is fine because the helper reads whole
-                // files and simply retries when a parse fails.
-                target.writeText(json)
-                tmp.delete()
-            }
-        }.onFailure { Log.w(TAG, "state write failed", it) }
+        writerExecutor.execute {
+            // Never let a bridge failure take the UI down with it.
+            runCatching {
+                val target = stateFile(ctx)
+                val tmp = File(target.parentFile, target.name + ".tmp")
+                tmp.writeText(json)
+                if (!tmp.renameTo(target)) {
+                    // FUSE can refuse the rename; a direct write is fine because the helper reads whole
+                    // files and simply retries when a parse fails.
+                    target.writeText(json)
+                    tmp.delete()
+                }
+            }.onFailure { Log.w(TAG, "state write failed", it) }
+        }
     }
 
     /**

@@ -63,7 +63,7 @@ enum class Pattern(
 }
 
 enum class Trigger { NOTIFICATION, FOREGROUND }
-
+enum class EventTarget { ALL, MESSAGES_ONLY, CALLS_ONLY }
 enum class AlertSource(val key: String) {
     NOTIFICATION("notification"), PREVIEW("preview"), FOREGROUND("foreground")
 }
@@ -193,6 +193,8 @@ data class AppRule(
     val repeatIntervalMs: Int = 15_000,
     /** Exclusions apply only to catch-all rules, leaving explicit app rules independent. */
     val excludedPackages: Set<String> = emptySet(),
+    val eventTarget: EventTarget = EventTarget.ALL,
+    val knockEnabled: Boolean = false,
 ) {
     fun effectiveLook(colorOverride: Int = color): Ambient =
         (look ?: Ambient(secondColor = colorOverride, randomIntervalMs = 500)).copy(
@@ -217,8 +219,7 @@ data class AppRule(
      * Package plus trigger used to be enough, but an app can now hold several rules — one per
      * conversation, plus a plain one for everything else — so the conversation has to be part of it.
      */
-    val id: String get() = "$pkg|${trigger.name}|${conversationKey ?: conversationName ?: ""}"
-
+    val id: String get() = "$pkg|${trigger.name}|${conversationKey ?: conversationName ?: ""}|${eventTarget.name}"
     fun toPrefsJson(): JSONObject = JSONObject().apply {
         put("pkg", pkg)
         put("label", label)
@@ -242,6 +243,8 @@ data class AppRule(
         put("repeatWhilePending", repeatWhilePending)
         put("repeatIntervalMs", repeatIntervalMs.coerceIn(5_000, 60_000))
         put("excludedPackages", JSONArray().also { a -> excludedPackages.sorted().forEach(a::put) })
+        put("eventTarget", eventTarget.name)
+        put("knockEnabled", knockEnabled)
     }
 
     companion object {
@@ -274,6 +277,10 @@ data class AppRule(
             excludedPackages = o.optJSONArray("excludedPackages")?.let { a ->
                 (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotBlank) }.toSet()
             } ?: emptySet(),
+            eventTarget = runCatching {
+                EventTarget.valueOf(o.optString("eventTarget", EventTarget.ALL.name))
+            }.getOrDefault(EventTarget.ALL),
+            knockEnabled = o.optBoolean("knockEnabled", false),
         )
     }
 }
