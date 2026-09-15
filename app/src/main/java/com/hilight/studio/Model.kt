@@ -62,7 +62,7 @@ enum class Pattern(
     }
 }
 
-enum class Trigger { NOTIFICATION, FOREGROUND }
+enum class Trigger { NOTIFICATION, FOREGROUND, SCHEDULED }
 enum class EventTarget { ALL, MESSAGES_ONLY, CALLS_ONLY }
 enum class AlertSource(val key: String) {
     NOTIFICATION("notification"), PREVIEW("preview"), FOREGROUND("foreground")
