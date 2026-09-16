@@ -4,9 +4,12 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import androidx.core.content.edit
 
 object ReminderScheduler {
+    private const val TAG = "ReminderScheduler"
     private const val REQUEST_CODE = 4444
 
     fun scheduleReminderRule(context: Context, intervalHours: Int, rule: AppRule) {
@@ -36,11 +39,22 @@ object ReminderScheduler {
         val intervalMillis = intervalHours * 60 * 60 * 1000L
         val triggerAt = System.currentTimeMillis() + intervalMillis
 
-        am.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAt,
-            pi
-        )
+        try {
+            val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                am.canScheduleExactAlarms()
+            } else {
+                true
+            }
+
+            if (canScheduleExact) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            }
+        } catch (se: SecurityException) {
+            Log.w(TAG, "Permesso allarmi esatti non garantito, fallback ad allarme standard", se)
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+        }
     }
 
     fun cancelReminders(context: Context) {
