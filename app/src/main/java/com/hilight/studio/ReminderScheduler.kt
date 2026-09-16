@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import androidx.core.content.edit
 
@@ -40,13 +39,7 @@ object ReminderScheduler {
         val triggerAt = System.currentTimeMillis() + intervalMillis
 
         try {
-            val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                am.canScheduleExactAlarms()
-            } else {
-                true
-            }
-
-            if (canScheduleExact) {
+            if (am.canScheduleExactAlarms()) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
             } else {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
