@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.edit
 
 object ReminderScheduler {
     private const val REQUEST_CODE = 4444
@@ -12,17 +13,17 @@ object ReminderScheduler {
         val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
 
         val prefs = context.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean("is_active", true)
-            .putInt("active_interval", intervalHours)
-            .putString("saved_rule_pattern", rule.pattern.name)
-            .putInt("saved_rule_color", rule.color)
-            .putInt("saved_rule_speed", rule.speedMs)
-            .putFloat("saved_rule_brightness", rule.brightness)
-            .putInt("saved_rule_duration", rule.durationMs)
-            .putBoolean("saved_rule_screen_off", rule.onlyWhenScreenOff)
-            .putBoolean("saved_rule_face_down", rule.onlyWhenFaceDown)
-            .apply()
+        prefs.edit {
+            putBoolean("is_active", true)
+            putInt("active_interval", intervalHours)
+            putString("saved_rule_pattern", rule.pattern.name)
+            putInt("saved_rule_color", rule.color)
+            putInt("saved_rule_speed", rule.speedMs)
+            putFloat("saved_rule_brightness", rule.brightness)
+            putInt("saved_rule_duration", rule.durationMs)
+            putBoolean("saved_rule_screen_off", rule.onlyWhenScreenOff)
+            putBoolean("saved_rule_face_down", rule.onlyWhenFaceDown)
+        }
 
         val intent = Intent(context, ReminderReceiver::class.java)
         val pi = PendingIntent.getBroadcast(
@@ -54,9 +55,8 @@ object ReminderScheduler {
         am.cancel(pi)
         pi.cancel()
 
-        context.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean("is_active", false)
-            .apply()
+        context.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE).edit {
+            putBoolean("is_active", false)
+        }
     }
 }

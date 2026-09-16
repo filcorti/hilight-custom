@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Allarmi precisi per i promemoria (richiesto da Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
     <!-- Optional "while app is open" rules: user grants this in
          Settings > Apps > Special app access > Usage access. -->
     <uses-permission
