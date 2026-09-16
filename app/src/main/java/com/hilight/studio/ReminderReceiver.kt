@@ -3,38 +3,38 @@ package com.hilight.studio
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 
 class ReminderReceiver : BroadcastReceiver() {
-
     override fun onReceive(context: Context, intent: Intent) {
-        val patternKey = intent.getStringExtra("PATTERN_KEY") ?: Pattern.PULSE.key
-        val color = intent.getIntExtra("COLOR", 0xFF00E5FF.toInt())
-        val durationMs = intent.getIntExtra("DURATION_MS", 10_000)
-        val speedMs = intent.getIntExtra("SPEED_MS", 800)
+        val prefs = context.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("is_active", false)) return
 
-        Log.d("HiLightReminder", "Promemoria scattato: pattern=$patternKey, durata=$durationMs")
+        val patternName = prefs.getString("saved_rule_pattern", Pattern.PULSE.name) ?: Pattern.PULSE.name
+        val pattern = runCatching { Pattern.valueOf(patternName) }.getOrDefault(Pattern.PULSE)
+        val color = prefs.getInt("saved_rule_color", 0xFF00E5FF.toInt())
+        val speedMs = prefs.getInt("saved_rule_speed", 1000)
+        val brightness = prefs.getFloat("saved_rule_brightness", 1.0f)
+        val durationMs = prefs.getInt("saved_rule_duration", 4000)
+        val onlyScreenOff = prefs.getBoolean("saved_rule_screen_off", false)
+        val onlyFaceDown = prefs.getBoolean("saved_rule_face_down", false)
 
-        // Recuperiamo lo Store dell'app
-        val store = Store.get(context)
-
-        // Se HiLight è disattivato dall'utente, non accendere i LED
-        if (!store.enabled.value) return
-
-        // Costruiamo una regola temporanea per il promemoria
-        val reminderRule = AppRule(
-            pkg = "com.hilight.reminder",
+        val rule = AppRule(
+            pkg = "com.hilight.studio.reminder",
             label = "Promemoria",
-            enabled = true,
-            trigger = Trigger.SCHEDULED,
-            pattern = Pattern.of(patternKey),
+            pattern = pattern,
             color = color,
-            durationMs = durationMs,
             speedMs = speedMs,
-            brightness = 1.0f
+            brightness = brightness,
+            durationMs = durationMs,
+            onlyWhenScreenOff = onlyScreenOff,
+            onlyWhenFaceDown = onlyFaceDown
         )
 
-        // Accendiamo i LED tramite il motore ufficiale di HiLight
-        store.fireAlert(reminderRule, owner = "reminder:scheduled")
+        val store = Store.get(context)
+        store.fireAlert(rule = rule, owner = "reminder")
+
+        // Riprogramma automaticamente per il ciclo successivo
+        val intervalHours = prefs.getInt("active_interval", 1)
+        ReminderScheduler.scheduleReminderRule(context, intervalHours, rule)
     }
 }

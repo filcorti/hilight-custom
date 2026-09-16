@@ -4,108 +4,59 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import java.util.Calendar
 
 object ReminderScheduler {
+    private const val REQUEST_CODE = 4444
 
-    private const val INTERVAL_REQUEST_CODE = 3001
-    private const val FIXED_TIME_REQUEST_CODE = 3002
+    fun scheduleReminderRule(context: Context, intervalHours: Int, rule: AppRule) {
+        val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
 
-    /**
-     * Pianifica un allarme a intervalli regolari (es. ogni 1, 2, 3 ore)
-     */
-    fun scheduleInterval(
-        context: Context,
-        intervalHours: Int,
-        pattern: Pattern = Pattern.PULSE,
-        color: Int = 0xFF00E5FF.toInt()
-    ) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, ReminderReceiver::class.java).apply {
-            putExtra("PATTERN_KEY", pattern.key)
-            putExtra("COLOR", color)
-            putExtra("DURATION_MS", 10_000)
-            putExtra("SPEED_MS", 800)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
+        val prefs = context.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("is_active", true)
+            .putInt("active_interval", intervalHours)
+            .putString("saved_rule_pattern", rule.pattern.name)
+            .putInt("saved_rule_color", rule.color)
+            .putInt("saved_rule_speed", rule.speedMs)
+            .putFloat("saved_rule_brightness", rule.brightness)
+            .putInt("saved_rule_duration", rule.durationMs)
+            .putBoolean("saved_rule_screen_off", rule.onlyWhenScreenOff)
+            .putBoolean("saved_rule_face_down", rule.onlyWhenFaceDown)
+            .apply()
+
+        val intent = Intent(context, ReminderReceiver::class.java)
+        val pi = PendingIntent.getBroadcast(
             context,
-            INTERVAL_REQUEST_CODE,
+            REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val intervalMillis = intervalHours * 60 * 60 * 1000L
-        val firstTriggerAt = System.currentTimeMillis() + intervalMillis
+        val triggerAt = System.currentTimeMillis() + intervalMillis
 
-        alarmManager.setInexactRepeating(
+        am.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
-            firstTriggerAt,
-            intervalMillis,
-            pendingIntent
+            triggerAt,
+            pi
         )
     }
 
-    /**
-     * Pianifica un allarme ad orario specifico (es. alle 14:30)
-     */
-    fun scheduleFixedTime(
-        context: Context,
-        hour: Int,
-        minute: Int,
-        pattern: Pattern = Pattern.PULSE,
-        color: Int = 0xFF00E5FF.toInt()
-    ) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, ReminderReceiver::class.java).apply {
-            putExtra("PATTERN_KEY", pattern.key)
-            putExtra("COLOR", color)
-            putExtra("DURATION_MS", 10_000)
-            putExtra("SPEED_MS", 800)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            FIXED_TIME_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            if (before(Calendar.getInstance())) {
-                add(Calendar.DAY_OF_MONTH, 1)
-            }
-        }
-
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            pendingIntent
-        )
-    }
-
-    /**
-     * Cancella i promemoria impostati
-     */
     fun cancelReminders(context: Context) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderReceiver::class.java)
-
-        val pendingInterval = PendingIntent.getBroadcast(
+        val pi = PendingIntent.getBroadcast(
             context,
-            INTERVAL_REQUEST_CODE,
+            REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val pendingFixed = PendingIntent.getBroadcast(
-            context,
-            FIXED_TIME_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        am.cancel(pi)
+        pi.cancel()
 
-        alarmManager.cancel(pendingInterval)
-        alarmManager.cancel(pendingFixed)
+        context.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("is_active", false)
+            .apply()
     }
 }
