@@ -38,10 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -66,40 +62,38 @@ import kotlinx.coroutines.withContext
  */
 private const val ADB_PHONE_RESET =
     "live=1; i=0; while [ ${'$'}i -lt 65 ] && [ -n \"${'$'}live\" ]; do live=\"\"; " +
-        "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
-        "c=${'$'}(tr \"\\000\" \" \" < ${'$'}d/cmdline 2>/dev/null); " +
-        "if [ -z \"${'$'}c\" ]; then e=${'$'}(readlink ${'$'}d/exe 2>/dev/null); " +
-        "x=${'$'}{e##*/}; if [ \"${'$'}x\" = app_process ] || " +
-        "[ \"${'$'}x\" = app_process32 ] || " +
-        "[ \"${'$'}x\" = app_process64 ]; then exit 1; fi; continue; fi; " +
-        "set -- ${'$'}c; " +
-        "x=${'$'}{1##*/}; if { { [ \"${'$'}x\" = app_process ] || " +
-        "[ \"${'$'}x\" = app_process32 ] || [ \"${'$'}x\" = app_process64 ]; } && " +
-        "[ \"${'$'}{2:-x}\" = / ] && " +
-        "[ \"${'$'}{3:-x}\" = com.hilight.core.AdbHelper ]; } || " +
-        "[ \"${'$'}{1:-x}\" = com.hilight.studio:hilight ]; then " +
-        "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
-        "[ -n \"${'$'}live\" ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
-        "[ -z \"${'$'}live\" ] || exit 1"
-
-private const val DHANANJAY_TECH_URL = "https://twitter.com/Dhananjay_Tech"
+            "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
+            "c=${'$'}(tr \"\\000\" \" \" < ${'$'}d/cmdline 2>/dev/null); " +
+            "if [ -z \"${'$'}c\" ]; then e=${'$'}(readlink ${'$'}d/exe 2>/dev/null); " +
+            "x=${'$'}{e##*/}; if [ \"${'$'}x\" = app_process ] || " +
+            "[ \"${'$'}x\" = app_process32 ] || " +
+            "[ \"${'$'}x\" = app_process64 ]; then exit 1; fi; continue; fi; " +
+            "set -- ${'$'}c; " +
+            "x=${'$'}{1##*/}; if { { [ \"${'$'}x\" = app_process ] || " +
+            "[ \"${'$'}x\" = app_process32 ] || [ \"${'$'}x\" = app_process64 ]; } && " +
+            "[ \"${'$'}{2:-x}\" = / ] && " +
+            "[ \"${'$'}{3:-x}\" = com.hilight.core.AdbHelper ]; } || " +
+            "[ \"${'$'}{1:-x}\" = com.hilight.studio:hilight ]; then " +
+            "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
+            "[ -n \"${'$'}live\" ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
+            "[ -z \"${'$'}live\" ] || exit 1"
 
 private const val ADB_PHONE_RESET_CMD =
     "live=1; i=0; while [ ${'$'}i -lt 65 ] && [ ${'$'}live = 1 ]; do live=0; " +
-        "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
-        "c=${'$'}(tr '\\000' ' ' < ${'$'}d/cmdline 2>/dev/null); set -- ${'$'}c; " +
-        "if [ ${'$'}# -eq 0 ]; then e=${'$'}(readlink ${'$'}d/exe 2>/dev/null); " +
-        "x=${'$'}{e##*/}; if [ ${'$'}{x:-none} = app_process ] || " +
-        "[ ${'$'}{x:-none} = app_process32 ] || [ ${'$'}{x:-none} = app_process64 ]; " +
-        "then exit 1; fi; continue; fi; " +
-        "x=${'$'}{1##*/}; if { { [ ${'$'}x = app_process ] || " +
-        "[ ${'$'}x = app_process32 ] || [ ${'$'}x = app_process64 ]; } && " +
-        "[ ${'$'}{2:-x} = / ] && " +
-        "[ ${'$'}{3:-x} = com.hilight.core.AdbHelper ]; } || " +
-        "[ ${'$'}{1:-x} = com.hilight.studio:hilight ]; then " +
-        "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
-        "[ ${'$'}live = 1 ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
-        "[ ${'$'}live = 0 ] || exit 1"
+            "for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; " +
+            "c=${'$'}(tr '\\000' ' ' < ${'$'}d/cmdline 2>/dev/null); set -- ${'$'}c; " +
+            "if [ ${'$'}# -eq 0 ]; then e=${'$'}(readlink ${'$'}d/exe 2>/dev/null); " +
+            "x=${'$'}{e##*/}; if [ ${'$'}{x:-none} = app_process ] || " +
+            "[ ${'$'}{x:-none} = app_process32 ] || [ ${'$'}{x:-none} = app_process64 ]; " +
+            "then exit 1; fi; continue; fi; " +
+            "x=${'$'}{1##*/}; if { { [ ${'$'}x = app_process ] || " +
+            "[ ${'$'}x = app_process32 ] || [ ${'$'}x = app_process64 ]; } && " +
+            "[ ${'$'}{2:-x} = / ] && " +
+            "[ ${'$'}{3:-x} = com.hilight.core.AdbHelper ]; } || " +
+            "[ ${'$'}{1:-x} = com.hilight.studio:hilight ]; then " +
+            "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
+            "[ ${'$'}live = 1 ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
+            "[ ${'$'}live = 0 ] || exit 1"
 
 const val ADB_RESET =
     "adb shell '$ADB_PHONE_RESET'"
@@ -119,18 +113,18 @@ const val ADB_RESET =
  */
 const val ADB_COMMAND =
     "adb shell '$ADB_PHONE_RESET; " +
-        "instance=adb-${'$'}(cat /proc/sys/kernel/random/uuid); " +
-        "CLASSPATH=${'$'}(pm path com.hilight.studio | head -1 | cut -d: -f2) " +
-        "nohup app_process / com.hilight.core.AdbHelper --owner adb " +
-        "--instance \"${'$'}instance\" --exclusive > /data/local/tmp/hilight.log 2>&1 &'"
+            "instance=adb-${'$'}(cat /proc/sys/kernel/random/uuid); " +
+            "CLASSPATH=${'$'}(pm path com.hilight.studio | head -1 | cut -d: -f2) " +
+            "nohup app_process / com.hilight.core.AdbHelper --owner adb " +
+            "--instance \"${'$'}instance\" --exclusive > /data/local/tmp/hilight.log 2>&1 &'"
 
 /** The same pair for Windows Command Prompt, which does not understand single quotes. */
 const val ADB_COMMAND_CMD =
     "adb shell \"$ADB_PHONE_RESET_CMD; " +
-        "instance=adb-${'$'}(cat /proc/sys/kernel/random/uuid); " +
-        "CLASSPATH=${'$'}(pm path com.hilight.studio | head -1 | cut -d: -f2) " +
-        "nohup app_process / com.hilight.core.AdbHelper --owner adb " +
-        "--instance ${'$'}instance --exclusive > /data/local/tmp/hilight.log 2>&1 &\""
+            "instance=adb-${'$'}(cat /proc/sys/kernel/random/uuid); " +
+            "CLASSPATH=${'$'}(pm path com.hilight.studio | head -1 | cut -d: -f2) " +
+            "nohup app_process / com.hilight.core.AdbHelper --owner adb " +
+            "--instance ${'$'}instance --exclusive > /data/local/tmp/hilight.log 2>&1 &\""
 
 @Composable
 fun SetupScreen(store: Store) {
@@ -140,7 +134,7 @@ fun SetupScreen(store: Store) {
     val masterEnabled by store.enabled.collectAsStateWithLifecycle()
     val manualCleanupPending by store.manualLedCleanupPending.collectAsStateWithLifecycle()
     val manualCleanupInProgress = manualCleanupPending ||
-        (status.blackClearPending && status.blackClearCycleSource == "manual")
+            (status.blackClearPending && status.blackClearCycleSource == "manual")
     val transport by store.transport.collectAsStateWithLifecycle()
     val active by store.activeTransport.collectAsStateWithLifecycle()
     val shizukuState by store.shizuku.state.collectAsStateWithLifecycle()
@@ -194,8 +188,8 @@ fun SetupScreen(store: Store) {
             store.respectDnd.value && store.deviceSignals.inDoNotDisturb ->
                 resources.getString(R.string.setup_test_blocked_dnd)
             !notificationManager.areNotificationsEnabled() ||
-                notificationManager.getNotificationChannel("selftest")?.importance ==
-                android.app.NotificationManager.IMPORTANCE_NONE ->
+                    notificationManager.getNotificationChannel("selftest")?.importance ==
+                    android.app.NotificationManager.IMPORTANCE_NONE ->
                 resources.getString(R.string.setup_test_needs_notifications)
             reason != null -> resources.getString(
                 R.string.test_blocked_by_guard, resources.getString(reason.shortRes),
@@ -229,20 +223,6 @@ fun SetupScreen(store: Store) {
         }
     }
 
-    val attribution = stringResource(R.string.setup_attribution)
-    val attributionLink = stringResource(R.string.setup_attribution_external)
-    PixelCard(
-        modifier = Modifier.semantics(mergeDescendants = true) {
-            role = Role.Button
-            contentDescription = "$attribution. $attributionLink"
-        },
-        tone = 0,
-        onClick = { openExternalUrl(ctx, DHANANJAY_TECH_URL) },
-    ) {
-        SectionTitle(attribution)
-        Caption(attributionLink)
-    }
-
     PixelCard(tone = 2) {
         SectionTitle(
             stringResource(R.string.setup_auto_off_title),
@@ -258,9 +238,9 @@ fun SetupScreen(store: Store) {
             extendedMaxMs = Limits.AMBIENT_MAX_MS,
             unlockLabel = stringResource(R.string.setup_allow_five_minutes),
             warnFirst = stringResource(R.string.setup_warn_long_title) to
-                stringResource(R.string.setup_warn_long_body),
+                    stringResource(R.string.setup_warn_long_body),
             warnSecond = stringResource(R.string.setup_warn_long_confirm_title) to
-                stringResource(R.string.setup_warn_long_confirm_body),
+                    stringResource(R.string.setup_warn_long_confirm_body),
             onChange = { store.setAmbientTimeoutMs(it) },
         )
     }

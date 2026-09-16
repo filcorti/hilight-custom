@@ -2,7 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Allarmi precisi per i promemoria (richiesto da Android 12+) -->
+    <!-- Allarmi precisi per i promemoria (concesso in automatico dal sistema) -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Optional "while app is open" rules: user grants this in

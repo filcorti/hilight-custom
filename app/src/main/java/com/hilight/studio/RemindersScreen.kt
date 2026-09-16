@@ -4,7 +4,6 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,7 +12,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -29,6 +27,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
+private fun formatIntervalLabel(totalMinutes: Int): String {
+    val h = totalMinutes / 60
+    val m = totalMinutes % 60
+    return when {
+        h > 0 && m > 0 -> "${h}h ${m}m"
+        h > 0 -> "${h}h"
+        else -> "${m}m"
+    }
+}
+
 @Composable
 fun RemindersScreen(store: Store) {
     val context = LocalContext.current
@@ -38,12 +46,14 @@ fun RemindersScreen(store: Store) {
     var isReminderActive by remember {
         mutableStateOf(prefs.getBoolean("is_active", false))
     }
-    var savedIntervalHours by remember {
-        mutableIntStateOf(prefs.getInt("active_interval", 1))
+    var savedIntervalMinutes by remember {
+        mutableIntStateOf(prefs.getInt("active_interval_minutes", 60))
     }
 
-    val intervals = listOf(1, 2, 3, 4)
-    var selectedHours by remember { mutableIntStateOf(savedIntervalHours) }
+    var selectedHours by remember { mutableIntStateOf(savedIntervalMinutes / 60) }
+    var selectedMinutes by remember { mutableIntStateOf(savedIntervalMinutes % 60) }
+
+    val totalSelectedMinutes = (selectedHours * 60 + selectedMinutes).coerceAtLeast(1)
 
     var reminderRule by remember {
         val patternName = prefs.getString("saved_rule_pattern", Pattern.PULSE.name) ?: Pattern.PULSE.name
@@ -70,7 +80,6 @@ fun RemindersScreen(store: Store) {
         )
     }
 
-    // Niente più verticalScroll qui: eredita lo scroll naturale della schermata principale
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -94,7 +103,7 @@ fun RemindersScreen(store: Store) {
                 Spacer(modifier = Modifier.height(4.dp))
                 if (isReminderActive) {
                     Text(
-                        text = "● ATTIVO — Ogni $savedIntervalHours ${if (savedIntervalHours == 1) "ora" else "ore"}",
+                        text = "● ATTIVO — Ogni ${formatIntervalLabel(savedIntervalMinutes)}",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -108,7 +117,7 @@ fun RemindersScreen(store: Store) {
             }
         }
 
-        // 2. ANTEPRIMA STRISCIA LED
+        // 2. STRISCIA LED PREVIEW
         LedStrip(
             pattern = reminderRule.pattern,
             cfg = reminderRule.effectiveLook(),
@@ -116,26 +125,33 @@ fun RemindersScreen(store: Store) {
             heightDp = 38
         )
 
-        // 3. SELEZIONE CADENZA
+        // 3. SELEZIONE TEMPO (ORE E SINGOLO MINUTO)
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Intervallo di ripetizione", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    intervals.forEach { hours ->
-                        FilterChip(
-                            selected = selectedHours == hours,
-                            onClick = { selectedHours = hours },
-                            label = { Text("${hours}h") }
-                        )
-                    }
-                }
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Intervallo: ${formatIntervalLabel(totalSelectedMinutes)}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                PixelSlider(
+                    label = "Ore",
+                    value = selectedHours.toFloat(),
+                    range = 0f..12f,
+                    onChange = { selectedHours = it.toInt() }
+                ) { "${it.toInt()} h" }
+
+                PixelSlider(
+                    label = "Minuti",
+                    value = selectedMinutes.toFloat(),
+                    range = 0f..59f,
+                    onChange = { selectedMinutes = it.toInt() }
+                ) { "${it.toInt()} min" }
             }
         }
 
@@ -219,10 +235,14 @@ fun RemindersScreen(store: Store) {
         // 11. ATTIVA / DISATTIVA
         Button(
             onClick = {
-                ReminderScheduler.scheduleReminderRule(context, selectedHours, reminderRule)
+                ReminderScheduler.scheduleReminderRule(context, totalSelectedMinutes, reminderRule)
                 isReminderActive = true
-                savedIntervalHours = selectedHours
-                Toast.makeText(context, "Promemoria attivato!", Toast.LENGTH_SHORT).show()
+                savedIntervalMinutes = totalSelectedMinutes
+                Toast.makeText(
+                    context,
+                    "Promemoria attivato ogni ${formatIntervalLabel(totalSelectedMinutes)}!",
+                    Toast.LENGTH_SHORT
+                ).show()
             },
             modifier = Modifier.fillMaxWidth()
         ) {

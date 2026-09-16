@@ -33,8 +33,8 @@ class ReminderReceiver : BroadcastReceiver() {
         val store = Store.get(context)
         store.fireAlert(rule = rule, owner = "reminder")
 
-        // Riprogramma automaticamente per il ciclo successivo
-        val intervalHours = prefs.getInt("active_interval", 1)
-        ReminderScheduler.scheduleReminderRule(context, intervalHours, rule)
+        // Riprogramma con l'intervallo esatto in minuti
+        val intervalMinutes = prefs.getInt("active_interval_minutes", 60)
+        ReminderScheduler.scheduleReminderRule(context, intervalMinutes, rule)
     }
 }
