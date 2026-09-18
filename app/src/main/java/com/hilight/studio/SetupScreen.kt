@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -24,6 +26,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -177,7 +180,51 @@ fun SetupScreen(store: Store) {
     var selfTestWarning by remember { mutableStateOf<String?>(null) }
     var confirmingFaceDown by remember { mutableStateOf(false) }
     val updateScope = rememberCoroutineScope()
+    val ioScope = rememberCoroutineScope()
     val conversations by store.conversations.collectAsStateWithLifecycle()
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            ioScope.launch {
+                try {
+                    val exportData = store.exportBackupJson()
+                    withContext(Dispatchers.IO) {
+                        ctx.contentResolver.openOutputStream(uri)?.use { stream ->
+                            stream.write(exportData.toByteArray(Charsets.UTF_8))
+                        }
+                    }
+                    Toast.makeText(ctx, "Backup salvato con successo!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(ctx, "Errore salvataggio: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            ioScope.launch {
+                try {
+                    val jsonString = withContext(Dispatchers.IO) {
+                        ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use {
+                            it.readText()
+                        } ?: ""
+                    }
+                    val success = store.importBackupJson(jsonString)
+                    if (success) {
+                        Toast.makeText(ctx, "Configurazione ripristinata!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(ctx, "File di backup non valido", Toast.LENGTH_LONG).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(ctx, "Errore importazione: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     val testWarning: (Boolean) -> String? = { scheduling ->
         val reason = store.notificationTestSuppressionReason(scheduling)
@@ -215,11 +262,17 @@ fun SetupScreen(store: Store) {
     }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            notifAccess = hasNotificationAccess(ctx)
-            usageAccess = ForegroundWatcher.hasUsageAccess(ctx)
-            store.shizuku.refresh()
-            delay(1500)
+        withContext(Dispatchers.IO) {
+            while (true) {
+                val notif = hasNotificationAccess(ctx)
+                val usage = ForegroundWatcher.hasUsageAccess(ctx)
+                withContext(Dispatchers.Main) {
+                    notifAccess = notif
+                    usageAccess = usage
+                    store.shizuku.refresh()
+                }
+                delay(1500)
+            }
         }
     }
 
@@ -517,6 +570,27 @@ fun SetupScreen(store: Store) {
         SectionTitle(stringResource(R.string.setup_appearance_title))
         ToggleRow(stringResource(R.string.setup_wallpaper_colours), dynamicColor) {
             store.setDynamicColor(it)
+        }
+    }
+    PixelCard {
+        SectionTitle("Backup e Ripristino")
+        Caption("Esporta le tue regole app e promemoria in un file JSON o ripristina una configurazione salvata.")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(
+                onClick = { exportLauncher.launch("hilight_backup.json") },
+                modifier = Modifier.weight(1f)
+            ) {
+                ButtonLabel("Esporta")
+            }
+            FilledTonalButton(
+                onClick = { importLauncher.launch(arrayOf("application/json")) },
+                modifier = Modifier.weight(1f)
+            ) {
+                ButtonLabel("Importa")
+            }
         }
     }
 

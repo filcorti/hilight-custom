@@ -3161,6 +3161,100 @@ class Store private constructor(private val app: Context) {
         }
     }
 
+    // --- METODI PER IL BACKUP E IL RIPRISTINO ---
+
+    fun exportBackupJson(): String {
+        val root = JSONObject()
+        val rulesArray = JSONArray()
+
+        _rules.value.forEach { rule ->
+            val obj = JSONObject().apply {
+                put("pkg", rule.pkg)
+                put("label", rule.label)
+                put("pattern", rule.pattern.name)
+                put("color", rule.color)
+                put("speedMs", rule.speedMs)
+                put("brightness", rule.brightness.toDouble())
+                put("durationMs", rule.durationMs)
+                put("trigger", rule.trigger.name)
+                put("onlyWhenScreenOff", rule.onlyWhenScreenOff)
+                put("onlyWhenFaceDown", rule.onlyWhenFaceDown)
+                put("enabled", rule.enabled)
+                put("randomColor", rule.randomColor)
+                put("knockEnabled", rule.knockEnabled)
+            }
+            rulesArray.put(obj)
+        }
+        root.put("rules", rulesArray)
+
+        val remindersPrefs = app.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
+        val reminderObj = JSONObject().apply {
+            put("is_active", remindersPrefs.getBoolean("is_active", false))
+            put("active_interval_minutes", remindersPrefs.getInt("active_interval_minutes", 60))
+            put("saved_rule_pattern", remindersPrefs.getString("saved_rule_pattern", Pattern.PULSE.name))
+            put("saved_rule_color", remindersPrefs.getInt("saved_rule_color", 0xFF00E5FF.toInt()))
+            put("saved_rule_speed", remindersPrefs.getInt("saved_rule_speed", 1000))
+            put("saved_rule_brightness", remindersPrefs.getFloat("saved_rule_brightness", 1.0f).toDouble())
+            put("saved_rule_duration", remindersPrefs.getInt("saved_rule_duration", 4000))
+            put("saved_rule_screen_off", remindersPrefs.getBoolean("saved_rule_screen_off", false))
+            put("saved_rule_face_down", remindersPrefs.getBoolean("saved_rule_face_down", false))
+        }
+        root.put("reminders", reminderObj)
+
+        return root.toString(2)
+    }
+
+    fun importBackupJson(jsonString: String): Boolean {
+        return try {
+            val root = JSONObject(jsonString)
+            if (root.has("rules")) {
+                val array = root.getJSONArray("rules")
+                val restoredRules = mutableListOf<AppRule>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val rule = AppRule(
+                        pkg = obj.getString("pkg"),
+                        label = obj.getString("label"),
+                        pattern = runCatching { Pattern.valueOf(obj.getString("pattern")) }.getOrDefault(Pattern.PULSE),
+                        color = obj.getInt("color"),
+                        speedMs = obj.optInt("speedMs", 1000),
+                        brightness = obj.optDouble("brightness", 1.0).toFloat(),
+                        durationMs = obj.optInt("durationMs", 4000),
+                        trigger = runCatching { Trigger.valueOf(obj.optString("trigger", "NOTIFICATION")) }.getOrDefault(Trigger.NOTIFICATION),
+                        onlyWhenScreenOff = obj.optBoolean("onlyWhenScreenOff", false),
+                        onlyWhenFaceDown = obj.optBoolean("onlyWhenFaceDown", false),
+                        enabled = obj.optBoolean("enabled", true),
+                        randomColor = obj.optBoolean("randomColor", false),
+                        knockEnabled = obj.optBoolean("knockEnabled", false)
+                    )
+                    restoredRules.add(rule)
+                }
+                restoredRules.forEach { upsertRule(it) }
+            }
+
+            if (root.has("reminders")) {
+                val r = root.getJSONObject("reminders")
+                val remindersPrefs = app.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
+                remindersPrefs.edit().apply {
+                    putBoolean("is_active", r.optBoolean("is_active", false))
+                    putInt("active_interval_minutes", r.optInt("active_interval_minutes", 60))
+                    putString("saved_rule_pattern", r.optString("saved_rule_pattern", Pattern.PULSE.name))
+                    putInt("saved_rule_color", r.optInt("saved_rule_color", 0xFF00E5FF.toInt()))
+                    putInt("saved_rule_speed", r.optInt("saved_rule_speed", 1000))
+                    putFloat("saved_rule_brightness", r.optDouble("saved_rule_brightness", 1.0).toFloat())
+                    putInt("saved_rule_duration", r.optInt("saved_rule_duration", 4000))
+                    putBoolean("saved_rule_screen_off", r.optBoolean("saved_rule_screen_off", false))
+                    putBoolean("saved_rule_face_down", r.optBoolean("saved_rule_face_down", false))
+                    apply()
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore durante l'import del backup", e)
+            false
+        }
+    }
+
     @android.annotation.SuppressLint("StaticFieldLeak")
     companion object {
         private const val TAG = "HiLightStore"

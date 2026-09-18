@@ -7,12 +7,13 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.palette.graphics.Palette
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object AppColorExtractor {
 
-    private val colorCache = mutableMapOf<String, Int>()
+    private val colorCache = ConcurrentHashMap<String, Int>()
 
     suspend fun getDominantColorForPackage(context: Context, packageName: String): Int = withContext(Dispatchers.IO) {
         colorCache[packageName]?.let { return@withContext it }

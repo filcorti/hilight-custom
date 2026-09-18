@@ -148,16 +148,20 @@ fun AppRulesScreen(store: Store) {
             // OPTIMIZATION: Use MutableTransitionState to ensure the enter animation only runs once 
             // when the item is first added to the composition, avoiding unnecessary re-animations on recomposition.
             val visibleState = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+            val enterAnim = remember(index) {
+                fadeIn(tween(220, delayMillis = index * 40)) +
+                    slideInVertically(spring(dampingRatio = Spring.DampingRatioLowBouncy)) { it / 6 } +
+                    scaleIn(tween(240), initialScale = 0.97f)
+            }
             // cards ease in rather than appearing, staggered down the list
+            val cachedChat = remember(rule, conversations) { knownConversation(rule, conversations) }
             AnimatedVisibility(
                 visibleState = visibleState,
-                enter = fadeIn(tween(220, delayMillis = index * 40)) +
-                    slideInVertically(spring(dampingRatio = Spring.DampingRatioLowBouncy)) { it / 6 } +
-                    scaleIn(tween(240), initialScale = 0.97f),
+                enter = enterAnim,
             ) {
                 RuleCard(
                     rule = rule,
-                    chat = knownConversation(rule, conversations),
+                    chat = cachedChat,
                     lastMatchedMs = lastMatch[rule.id],
                     onToggle = { store.upsertRule(rule.copy(enabled = it)) },
                     onEdit = { editing = RuleEditorState(rule, isNew = false) },
@@ -251,7 +255,7 @@ fun AppRulesScreen(store: Store) {
             presets = presets,
             learnedPackages = learnedPackages,
             chatIsGroup = rule.conversationIsGroup ||
-                knownConversation(rule, conversations)?.isGroup == true,
+                remember(rule, conversations) { knownConversation(rule, conversations)?.isGroup == true },
             onDismiss = { editing = null },
             onSave = {
                 // The rule being edited is handed over as well: changing the trigger moves it to a
