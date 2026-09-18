@@ -62,6 +62,8 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * A rule's name as it should read now, rather than as it was stored.
@@ -105,12 +107,17 @@ fun AppRulesScreen(store: Store) {
         conversations.mapTo(mutableSetOf()) { it.pkg }
     }
 
+    val scope = rememberCoroutineScope()
+
     val startWholeAppRule: (InstalledApp) -> Unit = { app ->
         val draft = nextWholeAppRule(app.pkg, app.label, rules)
         if (draft == null) {
             Toast.makeText(ctx, R.string.rules_both_triggers_exist, Toast.LENGTH_SHORT).show()
         } else {
-            editing = RuleEditorState(draft, isNew = true)
+            scope.launch {
+                val dominantColor = AppColorExtractor.getDominantColorForPackage(ctx, app.pkg)
+                editing = RuleEditorState(draft.copy(color = dominantColor), isNew = true)
+            }
         }
     }
 
