@@ -58,7 +58,8 @@ enum class Pattern(
     val shortLabelRes: Int get() = narrowLabelRes ?: labelRes
 
     companion object {
-        fun of(key: String) = entries.firstOrNull { it.key == key } ?: SOLID
+        private val BY_KEY = entries.associateBy { it.key }
+        fun of(key: String) = BY_KEY[key] ?: SOLID
     }
 }
 
@@ -74,7 +75,8 @@ enum class PrivacyActivity(val key: String, val appOp: String) {
     CAMERA("camera", "android:camera");
 
     companion object {
-        fun of(key: String): PrivacyActivity? = entries.firstOrNull { it.key == key }
+        private val BY_KEY = entries.associateBy { it.key }
+        fun of(key: String): PrivacyActivity? = BY_KEY[key]
     }
 }
 
@@ -83,7 +85,7 @@ data class Ambient(
     val pattern: Pattern = Pattern.OFF,
     val color: Int = 0xFF7C4DFF.toInt(),
     val secondColor: Int = 0xFF00E5FF.toInt(),
-    val perLed: List<Int> = List(LED_COUNT) { 0xFF7C4DFF.toInt() },
+    val perLed: List<Int> = DEFAULT_PER_LED,
     val brightness: Float = 0.7f,
     val speedMs: Int = 2500,
     val rainbowSpread: Boolean = true,
@@ -114,13 +116,15 @@ data class Ambient(
     }
 
     companion object {
+        private val DEFAULT_PER_LED = List(LED_COUNT) { 0xFF7C4DFF.toInt() }
+
         fun fromJson(o: JSONObject) = Ambient(
             pattern = Pattern.of(o.optString("pattern", "off")),
             color = o.optLong("color", 0xFF7C4DFFL).toInt(),
             secondColor = o.optLong("secondColor", 0xFF00E5FFL).toInt(),
             perLed = o.optJSONArray("perLed")?.let { a ->
                 (0 until a.length()).map { a.optLong(it).toInt() }
-            }?.takeIf { it.size == LED_COUNT } ?: List(LED_COUNT) { 0xFF7C4DFF.toInt() },
+            }?.takeIf { it.size == LED_COUNT } ?: DEFAULT_PER_LED,
             brightness = o.optDouble("brightness", 0.7).toFloat(),
             speedMs = o.optInt("speedMs", 2500),
             rainbowSpread = o.optBoolean("rainbowSpread", true),
@@ -219,7 +223,7 @@ data class AppRule(
      * Package plus trigger used to be enough, but an app can now hold several rules — one per
      * conversation, plus a plain one for everything else — so the conversation has to be part of it.
      */
-    val id: String get() = "$pkg|${trigger.name}|${conversationKey ?: conversationName ?: ""}|${eventTarget.name}"
+    val id: String = "$pkg|${trigger.name}|${conversationKey ?: conversationName ?: ""}|${eventTarget.name}"
     fun toPrefsJson(): JSONObject = JSONObject().apply {
         put("pkg", pkg)
         put("label", label)
@@ -299,7 +303,7 @@ data class PrivacyRule(
     val speedMs: Int = 800,
     val brightness: Float = 1f,
 ) {
-    val id: String get() = "${activity.key}|$pkg"
+    val id: String = "${activity.key}|$pkg"
     val isCatchAll: Boolean get() = pkg == AppRule.ANY_APP
 
     fun toPrefsJson(): JSONObject = JSONObject().apply {

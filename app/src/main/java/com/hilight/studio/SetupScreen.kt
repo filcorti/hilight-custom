@@ -194,9 +194,13 @@ fun SetupScreen(store: Store) {
                             stream.write(exportData.toByteArray(Charsets.UTF_8))
                         }
                     }
-                    Toast.makeText(ctx, "Backup salvato con successo!", Toast.LENGTH_SHORT).show()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(ctx, "Backup salvato con successo!", Toast.LENGTH_SHORT).show()
+                    }
                 } catch (e: Exception) {
-                    Toast.makeText(ctx, "Errore salvataggio: ${e.message}", Toast.LENGTH_LONG).show()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(ctx, "Errore salvataggio: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
@@ -214,13 +218,17 @@ fun SetupScreen(store: Store) {
                         } ?: ""
                     }
                     val success = store.importBackupJson(jsonString)
-                    if (success) {
-                        Toast.makeText(ctx, "Configurazione ripristinata!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(ctx, "File di backup non valido", Toast.LENGTH_LONG).show()
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            Toast.makeText(ctx, "Configurazione ripristinata!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(ctx, "File di backup non valido", Toast.LENGTH_LONG).show()
+                        }
                     }
                 } catch (e: Exception) {
-                    Toast.makeText(ctx, "Errore importazione: ${e.message}", Toast.LENGTH_LONG).show()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(ctx, "Errore importazione: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
@@ -362,7 +370,7 @@ fun SetupScreen(store: Store) {
             ToggleRow(stringResource(R.string.setup_quiet_by_day), quietByDay, onChange = store::setQuietByDay)
             if (quietByDay) {
                 Caption(stringResource(R.string.setup_quiet_by_day_note))
-                val dayNames = java.text.DateFormatSymbols.getInstance().weekdays
+                val dayNames = remember { java.text.DateFormatSymbols.getInstance().weekdays }
                 quietDays.forEachIndexed { day, window ->
                     val calendarDay = (day + 1) % 7 + 1
                     ToggleRow(dayNames[calendarDay], window.enabled) {
@@ -432,12 +440,10 @@ fun SetupScreen(store: Store) {
         )
     }
 
-    val rootPresent = rootState in setOf(
-        RootBackend.State.AVAILABLE,
-        RootBackend.State.REQUESTING,
-        RootBackend.State.STARTING,
-        RootBackend.State.RUNNING,
-    )
+    val rootPresent = rootState == RootBackend.State.AVAILABLE ||
+        rootState == RootBackend.State.REQUESTING ||
+        rootState == RootBackend.State.STARTING ||
+        rootState == RootBackend.State.RUNNING
     if (rootPresent) {
         PixelCard(tone = 2) {
             SectionTitle(
