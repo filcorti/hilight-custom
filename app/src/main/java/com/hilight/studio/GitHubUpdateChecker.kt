@@ -1,5 +1,7 @@
 package com.hilight.studio
 
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -19,14 +21,14 @@ internal sealed interface UpdateCheckResult {
 /**
  * Manual update lookup for the project's public GitHub releases.
  *
- * GitHub's `releases/latest` endpoint excludes prereleases, and every HiLight build is intentionally
- * published as an experimental prerelease. The list endpoint includes them, so we resolve the
- * greatest semantic version ourselves and ignore drafts and non-version tags.
+ * GitHub's `releases/latest` endpoint excludes prereleases, and HiLight builds are
+ * published as experimental prereleases. The list endpoint includes them, so we resolve
+ * the greatest semantic version ourselves and ignore drafts and non-version tags.
  */
 internal object GitHubUpdateChecker {
     private const val RELEASES_API =
-        "https://api.github.com/repos/filcorti/hilight-custom/releases/latest"
-    private const val RELEASES_PAGE =
+        "https://api.github.com/repos/filcorti/hilight-custom/releases"
+    internal const val RELEASES_PAGE =
         "https://github.com/filcorti/hilight-custom/releases/tag/"
 
     fun check(currentVersionName: String): UpdateCheckResult {
@@ -62,20 +64,39 @@ internal object GitHubUpdateChecker {
     ): UpdateCheckResult = try {
         val current = ReleaseVersion.parse(currentVersionName)
             ?: return UpdateCheckResult.Failed
-        val entry = org.json.JSONObject(response)
-        
-        if (entry.optBoolean("draft", false)) return UpdateCheckResult.NoPublishedRelease
-        val tag = entry.optString("tag_name")
-        val version = ReleaseVersion.parse(tag) ?: return UpdateCheckResult.NoPublishedRelease
-        
-        val latest = ResolvedRelease(tag, version)
+
+        val releasesArray = when {
+            response.trimStart().startsWith("[") -> JSONArray(response)
+            response.trimStart().startsWith("{") -> JSONArray().put(JSONObject(response))
+            else -> return UpdateCheckResult.Failed
+        }
+
+        if (releasesArray.length() == 0) {
+            return UpdateCheckResult.NoPublishedRelease
+        }
+
+        val candidates = mutableListOf<ResolvedRelease>()
+
+        for (i in 0 until releasesArray.length()) {
+            val entry = releasesArray.optJSONObject(i) ?: continue
+            if (entry.optBoolean("draft", false)) continue
+
+            val tag = entry.optString("tag_name", "")
+            val version = ReleaseVersion.parse(tag) ?: continue
+            val htmlUrl = entry.optString("html_url", RELEASES_PAGE + tag)
+
+            candidates.add(ResolvedRelease(tag = tag, version = version, pageUrl = htmlUrl))
+        }
+
+        val latest = candidates.maxByOrNull { it.version }
+            ?: return UpdateCheckResult.NoPublishedRelease
 
         if (latest.version > current) {
             UpdateCheckResult.Available(
                 GitHubRelease(
                     tagName = latest.tag,
                     versionName = latest.version.displayName,
-                    pageUrl = entry.optString("html_url", RELEASES_PAGE + latest.tag),
+                    pageUrl = latest.pageUrl,
                 )
             )
         } else {
@@ -88,6 +109,7 @@ internal object GitHubUpdateChecker {
     private data class ResolvedRelease(
         val tag: String,
         val version: ReleaseVersion,
+        val pageUrl: String,
     )
 
     private data class ReleaseVersion(
