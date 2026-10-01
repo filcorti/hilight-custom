@@ -88,7 +88,7 @@ private const val ADB_PHONE_RESET_CMD =
             "x=${'$'}{1##*/}; if { { [ ${'$'}x = app_process ] || " +
             "[ ${'$'}x = app_process32 ] || [ ${'$'}x = app_process64 ]; } && " +
             "[ ${'$'}{2:-x} = / ] && " +
-            "[ \"${'$'}{3:-x}\" = com.hilight.core.AdbHelper ]; } || " +
+            "[ ${'$'}{3:-x} = com.hilight.core.AdbHelper ]; } || " +
             "[ ${'$'}{1:-x} = com.hilight.studio:hilight ]; then " +
             "kill -TERM ${'$'}p 2>/dev/null || exit 1; live=1; fi; done; " +
             "[ ${'$'}live = 1 ] && sleep 0.1; i=${'$'}((i + 1)); done; " +
@@ -207,8 +207,8 @@ fun SetupScreen(store: Store) {
         if (uri != null) {
             ioScope.launch {
                 try {
-                    val exportData = store.exportBackupJson()
                     withContext(Dispatchers.IO) {
+                        val exportData = store.exportBackupJson()
                         ctx.contentResolver.openOutputStream(uri)?.use { stream ->
                             stream.write(exportData.toByteArray(Charsets.UTF_8))
                         }
@@ -236,7 +236,9 @@ fun SetupScreen(store: Store) {
                             it.readText()
                         } ?: ""
                     }
-                    val success = store.importBackupJson(jsonString)
+                    val success = withContext(Dispatchers.IO) {
+                        store.importBackupJson(jsonString)
+                    }
                     withContext(Dispatchers.Main) {
                         if (success) {
                             Toast.makeText(ctx, "Configurazione ripristinata!", Toast.LENGTH_SHORT).show()

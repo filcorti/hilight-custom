@@ -3229,7 +3229,13 @@ class Store private constructor(private val app: Context) {
                     )
                     restoredRules.add(rule)
                 }
-                restoredRules.forEach { upsertRule(it) }
+                onMain {
+                    val currentMap = _rules.value.associateBy { it.id }.toMutableMap()
+                    restoredRules.forEach { currentMap[it.id] = it }
+                    _rules.value = currentMap.values.toList()
+                    saveRules()
+                    syncForegroundWatcher()
+                }
             }
 
             if (root.has("reminders")) {
