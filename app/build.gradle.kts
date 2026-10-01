@@ -54,7 +54,7 @@ android {
             // Public APKs use the permanent release certificate when signing material is present
             // and remain non-debuggable. The stable certificate enables future in-place updates;
             // Play Protect reputation checks are separate and are not guaranteed by signing alone.
-            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

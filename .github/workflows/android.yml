@@ -34,8 +34,15 @@ jobs:
           grep -q 'com.hilight.studio.HiLightUserService' "$RUNNER_TEMP/dex-packages.txt"
 
       - name: Upload Release APK
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@v4
         with:
           name: HiLightStudio-Release-APK
           path: app/build/outputs/apk/release/*.apk
+          retention-days: 14
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HiLightStudio-Debug-APK
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 14

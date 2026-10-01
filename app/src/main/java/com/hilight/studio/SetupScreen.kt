@@ -47,6 +47,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -718,54 +719,50 @@ fun SetupScreen(store: Store) {
 
                     PixelCard {
                         SectionTitle(
-                            stringResource(R.string.setup_updates_title),
+                            "Controllo Aggiornamenti",
                             trailing = {
-                                Caption(
-                                    stringResource(
-                                        R.string.setup_updates_installed,
-                                        BuildConfig.VERSION_NAME,
-                                    )
-                                )
+                                Caption("Versione: v${BuildConfig.VERSION_NAME}")
                             },
                         )
                         when {
-                            checkingForUpdates -> Caption(stringResource(R.string.setup_updates_checking))
-                            updateResult == null -> Caption(stringResource(R.string.setup_updates_body))
+                            checkingForUpdates -> Caption("Verifica in corso...")
+                            updateResult is UpdateCheckResult.Current -> {
+                                Text("L'app è aggiornata all'ultima versione", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4CAF50))
+                            }
                             updateResult is UpdateCheckResult.Available -> Caption(
-                                stringResource(
-                                    R.string.setup_updates_available,
-                                    (updateResult as UpdateCheckResult.Available).release.versionName,
-                                )
+                                "Nuova versione disponibile: ${(updateResult as UpdateCheckResult.Available).release.versionName}"
                             )
-                            updateResult is UpdateCheckResult.Current ->
-                                Caption(stringResource(R.string.setup_updates_current))
                             updateResult is UpdateCheckResult.NoPublishedRelease ->
-                                Caption(stringResource(R.string.setup_updates_none))
-                            else -> Caption(stringResource(R.string.setup_updates_failed))
+                                Caption("Nessuna release trovata")
+                            updateResult is UpdateCheckResult.Failed -> Caption("Impossibile connettersi a GitHub")
+                            else -> Caption("Verifica se è presente una nuova build sul repository.")
                         }
 
                         val available = updateResult as? UpdateCheckResult.Available
                         if (available != null && !checkingForUpdates) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Button(onClick = { openExternalUrl(ctx, available.release.pageUrl) }) {
-                                    ButtonLabel(stringResource(R.string.setup_updates_view_release))
+                                    ButtonLabel("Apri Release")
                                 }
                                 TextButton(onClick = checkForUpdates) {
-                                    ButtonLabel(stringResource(R.string.setup_updates_check_again))
+                                    ButtonLabel("Riprova")
                                 }
                             }
                         } else {
                             FilledTonalButton(
                                 onClick = checkForUpdates,
                                 enabled = !checkingForUpdates,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                ButtonLabel(
-                                    stringResource(
-                                        if (checkingForUpdates) R.string.setup_updates_checking
-                                        else R.string.setup_updates_check,
-                                    )
-                                )
+                                ButtonLabel(if (checkingForUpdates) "Verifica in corso..." else "Verifica aggiornamenti")
                             }
+                        }
+                        
+                        OutlinedButton(
+                            onClick = { openExternalUrl(ctx, "https://github.com/filcorti/hilight-custom/actions") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            ButtonLabel("CI / GitHub Actions")
                         }
                     }
                 }

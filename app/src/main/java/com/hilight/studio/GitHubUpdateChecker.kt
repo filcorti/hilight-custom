@@ -2,7 +2,6 @@ package com.hilight.studio
 
 import java.net.HttpURLConnection
 import java.net.URL
-import org.json.JSONArray
 
 internal data class GitHubRelease(
     val tagName: String,
@@ -26,9 +25,9 @@ internal sealed interface UpdateCheckResult {
  */
 internal object GitHubUpdateChecker {
     private const val RELEASES_API =
-        "https://api.github.com/repos/DhananjayBhosale/hilight-studio/releases?per_page=10"
+        "https://api.github.com/repos/filcorti/hilight-custom/releases/latest"
     private const val RELEASES_PAGE =
-        "https://github.com/DhananjayBhosale/hilight-studio/releases/tag/"
+        "https://github.com/filcorti/hilight-custom/releases/tag/"
 
     fun check(currentVersionName: String): UpdateCheckResult {
         var connection: HttpURLConnection? = null
@@ -63,30 +62,24 @@ internal object GitHubUpdateChecker {
     ): UpdateCheckResult = try {
         val current = ReleaseVersion.parse(currentVersionName)
             ?: return UpdateCheckResult.Failed
-        val releases = JSONArray(response)
-        var latest: ResolvedRelease? = null
+        val entry = org.json.JSONObject(response)
+        
+        if (entry.optBoolean("draft", false)) return UpdateCheckResult.NoPublishedRelease
+        val tag = entry.optString("tag_name")
+        val version = ReleaseVersion.parse(tag) ?: return UpdateCheckResult.NoPublishedRelease
+        
+        val latest = ResolvedRelease(tag, version)
 
-        for (index in 0 until releases.length()) {
-            val entry = releases.optJSONObject(index) ?: continue
-            if (entry.optBoolean("draft", false)) continue
-            val tag = entry.optString("tag_name")
-            val version = ReleaseVersion.parse(tag) ?: continue
-            if (latest == null || version > latest.version) {
-                latest = ResolvedRelease(tag, version)
-            }
-        }
-
-        val published = latest ?: return UpdateCheckResult.NoPublishedRelease
-        if (published.version > current) {
+        if (latest.version > current) {
             UpdateCheckResult.Available(
                 GitHubRelease(
-                    tagName = published.tag,
-                    versionName = published.version.displayName,
-                    pageUrl = RELEASES_PAGE + published.tag,
+                    tagName = latest.tag,
+                    versionName = latest.version.displayName,
+                    pageUrl = entry.optString("html_url", RELEASES_PAGE + latest.tag),
                 )
             )
         } else {
-            UpdateCheckResult.Current(published.version.displayName)
+            UpdateCheckResult.Current(latest.version.displayName)
         }
     } catch (_: Exception) {
         UpdateCheckResult.Failed
