@@ -16,8 +16,8 @@ class PrivacyRuleTest {
 
         assertEquals(10_000, microphone.lightMs)
         assertEquals(10_000, microphone.cooldownMs)
-        assertEquals(0xFFFF1744.toInt(), microphone.color)
-        assertEquals(0xFF00E676.toInt(), camera.color)
+        assertEquals(CalibratedLedColors.RED, microphone.color)
+        assertEquals(CalibratedLedColors.EMERALD_GREEN, camera.color)
     }
 
     @Test
