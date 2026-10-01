@@ -9,7 +9,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
@@ -91,7 +90,6 @@ fun AppRulesScreen(store: Store) {
     val conversations by store.conversations.collectAsStateWithLifecycle()
     val lastMatch by store.lastMatch.collectAsStateWithLifecycle()
     val faceDownNoticeAccepted by store.faceDownNoticeAccepted.collectAsStateWithLifecycle()
-    val faceDownState by store.faceDownState.collectAsStateWithLifecycle()
     val faceDownSensorAvailable = remember(ctx) { ForegroundWatcher.hasFaceDownSensor(ctx) }
     var picking by remember { mutableStateOf(false) }
     var scoping by remember { mutableStateOf<InstalledApp?>(null) }
@@ -249,7 +247,6 @@ fun AppRulesScreen(store: Store) {
             },
             faceDownNoticeAccepted = faceDownNoticeAccepted,
             faceDownSensorAvailable = faceDownSensorAvailable,
-            faceDownState = faceDownState,
             onAcceptFaceDownNotice = store::acceptFaceDownNotice,
             onCopy = if (editor.isNew || rule.isConversationRule) null else ({ draft ->
                 editing = null
@@ -629,7 +626,6 @@ private fun RuleEditorDialog(
     onTest: (AppRule) -> Unit,
     faceDownNoticeAccepted: Boolean,
     faceDownSensorAvailable: Boolean,
-    faceDownState: FaceDownState,
     onAcceptFaceDownNotice: () -> Unit,
     onCopy: ((AppRule) -> Unit)?,
     onAddPrivacy: (() -> Unit)?,

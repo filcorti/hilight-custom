@@ -1135,13 +1135,6 @@ class Store private constructor(private val app: Context) {
         _learned.value = null
     }
 
-    /**
-     * When [rule] last matched, or null for never.
-     *
-     * The rules screen reads [lastMatch] directly so its cards update as matches arrive; this is for
-     * anywhere that wants one answer without collecting the flow.
-     */
-    fun lastMatchedMs(rule: AppRule): Long? = _lastMatch.value[rule.id]
 
     /**
      * Records that the listener looked at [info], for the inspector.
@@ -1542,7 +1535,6 @@ class Store private constructor(private val app: Context) {
         return true
     }
 
-    internal fun hasActiveAlert(): Boolean = activeAlert != null
 
     /** One-off preview used by the Test buttons. */
     fun preview(pattern: Pattern, color: Int, speedMs: Int, brightness: Float, durationMs: Int = 4000) {
@@ -1662,8 +1654,6 @@ class Store private constructor(private val app: Context) {
             1f
         }
 
-    /** True while a dimmed quiet window is in effect, for the UI to explain itself. */
-    fun inDimmedWindow(): Boolean = dimFactor() < 1f
 
     /**
      * Re-checks screen, clock and battery, and re-pushes if the answer changed.

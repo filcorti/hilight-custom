@@ -368,20 +368,11 @@ class NotificationTrigger : NotificationListenerService() {
     }
 }
 
-// --- Funzioni helper ripristinate con le firme esatte richieste alle righe 261 e 268 ---
-
-/**
- * Valuta se la notifica è silenziosa in base all'importanza del canale e ai flag di suono/vibrazione.
- */
 private fun isSilentNotification(importance: Int, hasSound: Boolean, shouldVibrate: Boolean): Boolean {
     if (importance < NotificationManager.IMPORTANCE_DEFAULT) return true
     return !hasSound && !shouldVibrate
 }
 
-/**
- * Valuta se il tipo di chiamata è una chiamata in arrivo (EXTRA_CALL_TYPE_INCOMING = 1).
- */
 private fun isIncomingCallType(callType: Int): Boolean {
-    // 1 corrisponde a Notification.EXTRA_CALL_TYPE_INCOMING
     return callType == 1
 }
