@@ -19,11 +19,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -47,6 +48,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,17 +63,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A rule's name as it should read now, rather than as it was stored.
- *
- * The catch-all rule has no app to be named after, so its label is written when the rule is created —
- * which means a rule made while the phone was in Japanese would keep its Japanese name after a switch
- * back to English, and the other way round. Resolving it at display time costs nothing and makes the
- * stored label irrelevant for the one rule whose label was never really data.
  */
 @Composable
 fun ruleLabel(rule: AppRule): String =
@@ -132,9 +128,6 @@ fun AppRulesScreen(store: Store) {
         }
     }
 
-    // An app's own rule and the per-chat rules under it have to sit together, or a colour for one
-    // contact reads as an unrelated app halfway down the list. Grouping by package keeps the apps in
-    // the order they were added — groupBy preserves that — and the plain rule leads its own group.
     val ordered = remember(rules) {
         rules.groupBy { it.pkg }.values.flatMap { group ->
             group.sortedWith(
@@ -145,15 +138,12 @@ fun AppRulesScreen(store: Store) {
 
     ordered.forEachIndexed { index, rule ->
         key(rule.id) {
-            // OPTIMIZATION: Use MutableTransitionState to ensure the enter animation only runs once 
-            // when the item is first added to the composition, avoiding unnecessary re-animations on recomposition.
             val visibleState = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
             val enterAnim = remember(index) {
                 fadeIn(tween(220, delayMillis = index * 40)) +
-                    slideInVertically(spring(dampingRatio = Spring.DampingRatioLowBouncy)) { it / 6 } +
-                    scaleIn(tween(240), initialScale = 0.97f)
+                        slideInVertically(spring(dampingRatio = Spring.DampingRatioLowBouncy)) { it / 6 } +
+                        scaleIn(tween(240), initialScale = 0.97f)
             }
-            // cards ease in rather than appearing, staggered down the list
             val cachedChat = remember(rule, conversations) { knownConversation(rule, conversations) }
             AnimatedVisibility(
                 visibleState = visibleState,
@@ -166,7 +156,6 @@ fun AppRulesScreen(store: Store) {
                     onToggle = { store.upsertRule(rule.copy(enabled = it)) },
                     onEdit = { editing = RuleEditorState(rule, isNew = false) },
                     onTest = {
-                        // test what the rule will actually do, including how long it stays lit
                         launchPreview(
                             rule.pattern, rule.color, rule.speedMs, rule.brightness, rule.durationMs,
                             look = rule.effectiveLook(),
@@ -196,8 +185,6 @@ fun AppRulesScreen(store: Store) {
             onDismiss = { picking = false },
             onPick = { app ->
                 picking = false
-                // The scope step only appears where a per-chat rule could actually fire, so the
-                // ordinary "flash for this app" rule still costs one tap for everything else.
                 if (offersConversations(store, app)) scoping = app
                 else startWholeAppRule(app)
             },
@@ -208,9 +195,9 @@ fun AppRulesScreen(store: Store) {
         RuleScopeDialog(
             appLabel = app.label,
             onDismiss = { scoping = null },
-            onPick = { scope ->
+            onPick = { scopeChoice ->
                 scoping = null
-                when (scope) {
+                when (scopeChoice) {
                     RuleScope.WHOLE_APP -> startWholeAppRule(app)
                     RuleScope.ONE_CHAT -> pickingChatIn = app
                 }
@@ -226,8 +213,6 @@ fun AppRulesScreen(store: Store) {
             onDismiss = { pickingChatIn = null },
             onPicked = { ref ->
                 pickingChatIn = null
-                // The label stays the app's own and the chat travels beside it: the card shows the
-                // app as an overline above the chat, and the matcher needs the two kept apart.
                 val fresh = AppRule(
                     pkg = app.pkg,
                     label = app.label,
@@ -235,8 +220,6 @@ fun AppRulesScreen(store: Store) {
                     conversationName = ref.name,
                     conversationIsGroup = ref.isGroup,
                 )
-                // A chat that already has a rule opens that rule instead of a blank one. Both share
-                // an id, so saving the blank one would overwrite the colour already chosen for them.
                 val stored = rules.firstOrNull { it.id == fresh.id }
                 editing = RuleEditorState(stored ?: fresh, isNew = stored == null)
             },
@@ -248,18 +231,13 @@ fun AppRulesScreen(store: Store) {
         RuleEditorDialog(
             rule = rule,
             isNew = editor.isNew,
-            // The whole rule set travels into the editor because rule identity is derived from
-            // fields the editor can change, so only the list can say whether the rule being saved
-            // is about to land on top of a different one.
             existing = rules,
             presets = presets,
             learnedPackages = learnedPackages,
             chatIsGroup = rule.conversationIsGroup ||
-                remember(rule, conversations) { knownConversation(rule, conversations)?.isGroup == true },
+                    remember(rule, conversations) { knownConversation(rule, conversations)?.isGroup == true },
             onDismiss = { editing = null },
             onSave = {
-                // The rule being edited is handed over as well: changing the trigger moves it to a
-                // different id, and without the old one the edit would leave a duplicate behind.
                 store.upsertRule(it, replacing = rule)
                 editing = null
             },
@@ -345,24 +323,10 @@ fun AppRulesScreen(store: Store) {
     }
 }
 
-/**
- * Should picking [app] offer the extra "one contact or chat" step?
- *
- * Never for the catch-all: a conversation rule is only ever resolved within one package, so one
- * attached to the "any app" sentinel could not match anything and would look broken instead.
- */
 private fun offersConversations(store: Store, app: InstalledApp): Boolean =
     app.pkg != AppRule.ANY_APP &&
-        (store.conversationsFor(app.pkg).isNotEmpty() || MessagingApps.looksLikeMessaging(app.pkg))
+            (store.conversationsFor(app.pkg).isNotEmpty() || MessagingApps.looksLikeMessaging(app.pkg))
 
-/**
- * One rule.
- *
- * [chat] is the conversation this rule names as HiLight last saw it, which is where the group badge
- * comes from — the rule itself stores only what the matcher needs. [lastMatchedMs] is null when the
- * rule has never fired, and saying so plainly matters: a per-contact rule that silently matches
- * nothing looks identical to one that works until the day you need it.
- */
 @Composable
 private fun RuleCard(
     rule: AppRule,
@@ -375,8 +339,6 @@ private fun RuleCard(
 ) {
     val haptics = LocalHapticFeedback.current
     val perChat = rule.isConversationRule
-    // A per-chat rule is inset and a shade darker than the cards around it, so it reads as hanging
-    // off the app above rather than as another app of its own.
     PixelCard(
         modifier = if (perChat) Modifier.padding(start = 14.dp) else Modifier,
         tone = if (perChat) 0 else 1,
@@ -412,12 +374,6 @@ private fun RuleCard(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            // The rule's own field is consulted alongside the learned chat because
-                            // the learned list is not a reliable source for this: it is capped at
-                            // ConversationRef.MAX_REMEMBERED, the user can clear it from the setup
-                            // screen, and a rule made through the contact picker was never in it at
-                            // all. Reading only the list made the badge vanish in all three cases,
-                            // which is exactly what conversationIsGroup was added to prevent.
                             when {
                                 chat?.isGroup == true || rule.conversationIsGroup ->
                                     ConversationBadge(stringResource(R.string.chat_badge_group))
@@ -429,9 +385,6 @@ private fun RuleCard(
                     } else {
                         Text(ruleLabel(rule), style = MaterialTheme.typography.titleMedium)
                     }
-                    // One format string rather than three fragments joined with a separator: the
-                    // order of "what it looks like" and "when it fires" is not the same in every
-                    // language, and neither is the punctuation between them.
                     Caption(
                         stringResource(
                             R.string.rules_card_summary,
@@ -446,9 +399,6 @@ private fun RuleCard(
                         Caption(if (rule.eventTarget == EventTarget.CALLS_ONLY) "Solo chiamate" else "Solo messaggi")
                     }
                     if (rule.trigger == Trigger.NOTIFICATION) {
-                        // "Matched", not "fired": the match is recorded even when a guard — quiet
-                        // hours, the battery floor, the master switch — swallowed the flash, and
-                        // "your rule matched but quiet hours ate it" is the more useful answer.
                         Caption(
                             if (lastMatchedMs != null) {
                                 stringResource(
@@ -498,14 +448,12 @@ private fun RuleCard(
 fun AppPickerDialog(
     onDismiss: () -> Unit,
     onPick: (InstalledApp) -> Unit,
-    /** Packages learned from named notifications, beyond those with a launcher activity. */
     alsoOffer: Set<String> = emptySet(),
-    /** Used by Copy settings so the source cannot be selected as its own destination. */
     excludePackage: String? = null,
 ) {
     val ctx = LocalContext.current
     var query by remember { mutableStateOf("") }
-    
+
     val apps by produceState(initialValue = emptyList<InstalledApp>(), alsoOffer, excludePackage) {
         value = withContext(Dispatchers.IO) {
             val pm = ctx.packageManager
@@ -529,8 +477,6 @@ fun AppPickerDialog(
         }
     }
 
-    // The catch-all is not an installed app, so its name is HiLight's own word for it rather than
-    // something the package manager can be asked for — and it travels into the rule as the label.
     val anyAppLabel = stringResource(R.string.rules_any_app)
 
     AlertDialog(
@@ -549,12 +495,10 @@ fun AppPickerDialog(
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                // Memoize the filtered list to avoid re-calculating on every recomposition (e.g. during scroll)
                 val shown = remember(apps, query) {
                     apps.filter { it.label.contains(query, ignoreCase = true) }
                 }
                 LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                    // a rule that covers every app without one of its own
                     if (excludePackage != AppRule.ANY_APP) {
                         item(key = AppRule.ANY_APP) {
                             Row(
@@ -596,17 +540,14 @@ fun AppPickerDialog(
     )
 }
 
-// Cache to avoid reloading and converting app icons on every scroll in the LazyColumn, which causes high CPU usage and memory churn.
 private val appIconCache = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(100)
 
 @Composable
 private fun AppIcon(app: InstalledApp) {
     val ctx = LocalContext.current
     val cached = appIconCache.get(app.pkg)
-    
+
     if (cached != null) {
-        // OPTIMIZATION: Fast path to avoid launching coroutines during LazyColumn scroll
-        // for items whose icons are already cached, reducing CPU overhead and GC churn.
         Box(Modifier.size(32.dp)) {
             Image(cached, contentDescription = null, modifier = Modifier.size(32.dp))
         }
@@ -628,15 +569,7 @@ private fun AppIcon(app: InstalledApp) {
 }
 
 /**
- * The rule editor.
- *
- * [chatIsGroup] says whether the conversation this rule names is itself a group, which decides
- * whether the "also in groups" toggle means anything: a rule naming a group already fires for
- * everything said in it, so the toggle would be a control that does nothing.
- *
- * [existing] is every saved rule, needed because [AppRule.id] is built out of the package, the
- * trigger and the conversation — two of which this dialog can change. Saving is id-keyed, so an edit
- * that walks onto another rule's id replaces it, and only the full list can see that coming.
+ * The rule editor with collapsible advanced settings.
  */
 @Composable
 private fun RuleEditorDialog(
@@ -660,15 +593,9 @@ private fun RuleEditorDialog(
     var confirmingFaceDown by remember { mutableStateOf(false) }
     var pickingPreset by remember { mutableStateOf(false) }
     var pickingExcludedApp by remember { mutableStateOf(false) }
+    var showAdvanced by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
 
-    /*
-     * Whether saving would land on a rule other than the one being edited.
-     *
-     * A new copy has no saved identity of its own, so every occupied destination is a replacement,
-     * even when all of its values happen to equal the saved rule. An edit may still occupy its own
-     * id without warning.
-     */
     val replacesAnother = remember(r.id, rule, existing, isNew) {
         replacesExistingRule(existing, r, rule, isNew)
     }
@@ -702,6 +629,7 @@ private fun RuleEditorDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                // 1. Anteprima LED
                 LedStrip(
                     r.pattern,
                     r.effectiveLook(),
@@ -727,6 +655,7 @@ private fun RuleEditorDialog(
                     Caption(stringResource(R.string.rules_trigger_pair_hint))
                 }
 
+                // 2. Pattern
                 TextButton(onClick = { pickingPreset = true }, modifier = Modifier.fillMaxWidth()) {
                     ButtonLabel(stringResource(R.string.rules_use_saved_look))
                 }
@@ -736,6 +665,7 @@ private fun RuleEditorDialog(
                     onSelect = { r = r.copy(pattern = it) },
                 )
 
+                // 3. Colore
                 if (r.pattern != Pattern.CUSTOM) {
                     ToggleRow(
                         stringResource(R.string.rules_random_colour_each_time), r.randomColor,
@@ -754,168 +684,166 @@ private fun RuleEditorDialog(
                     Caption(stringResource(R.string.rules_custom_saved_look))
                 }
 
-                if (r.trigger == Trigger.NOTIFICATION) {
-                    SegmentedSelector(
-                        options = listOf(EventTarget.ALL, EventTarget.MESSAGES_ONLY, EventTarget.CALLS_ONLY),
-                        selected = r.eventTarget,
-                        label = { target ->
-                            when (target) {
-                                EventTarget.ALL -> "Tutti"
-                                EventTarget.MESSAGES_ONLY -> "Messaggi"
-                                EventTarget.CALLS_ONLY -> "Chiamate"
-                            }
-                        },
-                        onSelect = { r = r.copy(eventTarget = it) },
-                    )
-                    Caption("Scegli se questa luce deve attivarsi per le chat, per le chiamate in arrivo o per entrambe.")
+                // 4. Durata
+                GatedDurationSlider(
+                    label = stringResource(R.string.rules_show_for),
+                    valueMs = r.durationMs,
+                    minMs = 2_000,
+                    safeMaxMs = Limits.WARN_ABOVE_MS,
+                    extendedMaxMs = Limits.RULE_MAX_MS,
+                    unlockLabel = stringResource(R.string.rules_allow_one_minute),
+                    warnFirst = stringResource(R.string.rules_duration_warn_first_title) to
+                            stringResource(R.string.rules_duration_warn_first_body),
+                    warnSecond = stringResource(R.string.rules_duration_warn_second_title) to
+                            stringResource(R.string.rules_duration_warn_second_body),
+                    onChange = { r = r.copy(durationMs = it) },
+                )
 
-                    ToggleRow(stringResource(R.string.rules_ignore_silent), r.ignoreSilent) {
-                        r = r.copy(ignoreSilent = it)
-                    }
-                    Caption(stringResource(R.string.rules_ignore_silent_hint))
-                    ToggleRow(stringResource(R.string.rules_repeat_pending), r.repeatWhilePending) {
-                        r = r.copy(repeatWhilePending = it)
-                    }
-                    if (r.repeatWhilePending) {
-                        Caption(stringResource(R.string.rules_repeat_pending_hint))
-                        PixelSlider(
-                            stringResource(R.string.rules_repeat_interval),
-                            r.repeatIntervalMs.toFloat(), 5_000f..60_000f,
-                            { r = r.copy(repeatIntervalMs = it.toInt()) },
-                            typeInSeconds = true,
-                        ) { formatDuration(it.toInt()) }
-                    }
-                    if (r.isCatchAll) {
-                        TextButton(onClick = { pickingExcludedApp = true }) {
-                            ButtonLabel(stringResource(R.string.rules_exclude_app))
-                        }
-                        Caption(stringResource(R.string.rules_exclude_app_hint))
-                        r.excludedPackages.sorted().forEach { pkg ->
-                            // Fetch app label asynchronously to avoid blocking the main thread with PackageManager IPC calls
-                            val label by produceState(pkg, pkg) {
-                                value = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        ctx.packageManager.getApplicationLabel(
-                                            ctx.packageManager.getApplicationInfo(pkg, 0)
-                                        ).toString()
-                                    }.getOrDefault(pkg)
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(label, modifier = Modifier.weight(1f))
-                                TextButton(onClick = {
-                                    r = r.copy(excludedPackages = r.excludedPackages - pkg)
-                                }) { ButtonLabel(stringResource(R.string.rules_remove_exclusion)) }
-                            }
-                        }
-                    }
-                    if (r.isConversationRule) {
-                        if (chatIsGroup) {
-                            Caption(stringResource(R.string.rules_chat_is_group))
-                        } else {
-                            ToggleRow(
-                                stringResource(R.string.rules_include_groups), r.includeGroups,
-                            ) {
-                                r = r.copy(includeGroups = it)
-                            }
-                            Caption(stringResource(R.string.rules_include_groups_hint))
-                        }
-                    }
-
-                    // --- TOGGLE DOPPIA BUSSATA PER QUALSIASI REGOLA NOTIFICHE ---
-                    ToggleRow(
-                        "Doppia bussata (messaggi a raffica)",
-                        r.knockEnabled,
-                    ) {
-                        r = r.copy(knockEnabled = it)
-                    }
-                    Caption("Aumenta ritmo ed effetto se arrivano più messaggi consecutivi entro 15 secondi.")
-
-                    OutlinedTextField(
-                        value = r.keyword,
-                        onValueChange = { r = r.copy(keyword = it) },
-                        label = { Text(stringResource(R.string.rules_keyword_label)) },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    GatedDurationSlider(
-                        label = stringResource(R.string.rules_show_for),
-                        valueMs = r.durationMs,
-                        minMs = 2_000,
-                        safeMaxMs = Limits.WARN_ABOVE_MS,
-                        extendedMaxMs = Limits.RULE_MAX_MS,
-                        unlockLabel = stringResource(R.string.rules_allow_one_minute),
-                        warnFirst = stringResource(R.string.rules_duration_warn_first_title) to
-                                stringResource(R.string.rules_duration_warn_first_body),
-                        warnSecond = stringResource(R.string.rules_duration_warn_second_title) to
-                                stringResource(R.string.rules_duration_warn_second_body),
-                        onChange = { r = r.copy(durationMs = it) },
-                    )
-                    ToggleRow(
-                        stringResource(R.string.rules_only_screen_off), r.onlyWhenScreenOff,
-                    ) {
-                        r = r.copy(onlyWhenScreenOff = it)
-                    }
-                    ToggleRow(
-                        label = stringResource(R.string.rules_only_face_down),
-                        checked = r.onlyWhenFaceDown,
-                        enabled = faceDownSensorAvailable || r.onlyWhenFaceDown,
-                    ) { wanted ->
-                        when {
-                            !wanted -> r = r.copy(onlyWhenFaceDown = false)
-                            faceDownNoticeAccepted -> r = r.copy(onlyWhenFaceDown = true)
-                            else -> confirmingFaceDown = true
-                        }
-                    }
-                    Caption(stringResource(R.string.face_down_caution))
-                    if (!faceDownSensorAvailable) {
-                        Caption(stringResource(R.string.face_down_no_sensor))
-                    } else if (r.onlyWhenFaceDown && !isNew) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Caption(stringResource(R.string.face_down_status_label))
-                            LivePill(
-                                text = stringResource(
-                                    when (faceDownState) {
-                                        FaceDownState.INACTIVE -> R.string.face_down_state_inactive
-                                        FaceDownState.STARTING -> R.string.face_down_state_starting
-                                        FaceDownState.CHECKING -> R.string.face_down_state_checking
-                                        FaceDownState.FACE_DOWN -> R.string.face_down_state_face_down
-                                        FaceDownState.NOT_FACE_DOWN ->
-                                            R.string.face_down_state_not_face_down
-                                        FaceDownState.UNAVAILABLE ->
-                                            R.string.face_down_state_unavailable
-                                        FaceDownState.STALE -> R.string.face_down_state_stale
-                                        FaceDownState.START_FAILED ->
-                                            R.string.face_down_state_start_failed
-                                    }
-                                ),
-                                ok = faceDownState == FaceDownState.FACE_DOWN,
-                            )
-                        }
-                    }
-                }
-
-                if (r.pattern.usesSpeed) {
-                    PixelSlider(
-                        stringResource(R.string.rules_time_per_cycle),
-                        r.speedMs.toFloat(),
-                        150f..5000f,
-                        { r = r.copy(speedMs = it.toInt()) },
-                        typeInSeconds = true,
-                    ) { formatDuration(it.toInt()) }
-                    r.pattern.cycleMeaningRes?.let { Caption(stringResource(it)) }
-                }
-                PixelSlider(
-                    stringResource(R.string.rules_brightness), r.brightness, 0.05f..1f,
-                    { r = r.copy(brightness = it) },
-                ) { stringResource(R.string.common_percent, (it * 100).toInt()) }
-
+                // 5. Test rapido
                 FilledTonalButton(onClick = { onTest(r) }, modifier = Modifier.fillMaxWidth()) {
                     ButtonLabel(stringResource(R.string.rules_test_on_leds))
+                }
+
+                // 6. Toggle impostazioni avanzate
+                OutlinedButton(
+                    onClick = { showAdvanced = !showAdvanced },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    ButtonLabel(
+                        if (showAdvanced) "Nascondi opzioni avanzate ▲"
+                        else "Opzioni avanzate (Filtri, Knock, Schermo) ▼"
+                    )
+                }
+
+                // 7. Sezione espandibile
+                AnimatedVisibility(visible = showAdvanced) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (r.trigger == Trigger.NOTIFICATION) {
+                            SegmentedSelector(
+                                options = listOf(EventTarget.ALL, EventTarget.MESSAGES_ONLY, EventTarget.CALLS_ONLY),
+                                selected = r.eventTarget,
+                                label = { target ->
+                                    when (target) {
+                                        EventTarget.ALL -> "Tutti"
+                                        EventTarget.MESSAGES_ONLY -> "Messaggi"
+                                        EventTarget.CALLS_ONLY -> "Chiamate"
+                                    }
+                                },
+                                onSelect = { r = r.copy(eventTarget = it) },
+                            )
+                            Caption("Filtra tra notifiche di chat, chiamate in arrivo o entrambe.")
+
+                            ToggleRow(
+                                "Doppia bussata (messaggi a raffica)",
+                                r.knockEnabled,
+                            ) {
+                                r = r.copy(knockEnabled = it)
+                            }
+                            Caption("Aumenta ritmo ed effetto se arrivano più messaggi consecutivi entro 15 secondi.")
+
+                            OutlinedTextField(
+                                value = r.keyword,
+                                onValueChange = { r = r.copy(keyword = it) },
+                                label = { Text(stringResource(R.string.rules_keyword_label)) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.medium,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+
+                            ToggleRow(stringResource(R.string.rules_ignore_silent), r.ignoreSilent) {
+                                r = r.copy(ignoreSilent = it)
+                            }
+                            Caption(stringResource(R.string.rules_ignore_silent_hint))
+
+                            ToggleRow(stringResource(R.string.rules_repeat_pending), r.repeatWhilePending) {
+                                r = r.copy(repeatWhilePending = it)
+                            }
+                            if (r.repeatWhilePending) {
+                                Caption(stringResource(R.string.rules_repeat_pending_hint))
+                                PixelSlider(
+                                    stringResource(R.string.rules_repeat_interval),
+                                    r.repeatIntervalMs.toFloat(), 5_000f..60_000f,
+                                    { r = r.copy(repeatIntervalMs = it.toInt()) },
+                                    typeInSeconds = true,
+                                ) { formatDuration(it.toInt()) }
+                            }
+
+                            ToggleRow(
+                                stringResource(R.string.rules_only_screen_off), r.onlyWhenScreenOff,
+                            ) {
+                                r = r.copy(onlyWhenScreenOff = it)
+                            }
+
+                            ToggleRow(
+                                label = stringResource(R.string.rules_only_face_down),
+                                checked = r.onlyWhenFaceDown,
+                                enabled = faceDownSensorAvailable || r.onlyWhenFaceDown,
+                            ) { wanted ->
+                                when {
+                                    !wanted -> r = r.copy(onlyWhenFaceDown = false)
+                                    faceDownNoticeAccepted -> r = r.copy(onlyWhenFaceDown = true)
+                                    else -> confirmingFaceDown = true
+                                }
+                            }
+                            Caption(stringResource(R.string.face_down_caution))
+
+                            if (r.isCatchAll) {
+                                TextButton(onClick = { pickingExcludedApp = true }) {
+                                    ButtonLabel(stringResource(R.string.rules_exclude_app))
+                                }
+                                Caption(stringResource(R.string.rules_exclude_app_hint))
+                                r.excludedPackages.sorted().forEach { pkg ->
+                                    val label by produceState(pkg, pkg) {
+                                        value = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                ctx.packageManager.getApplicationLabel(
+                                                    ctx.packageManager.getApplicationInfo(pkg, 0)
+                                                ).toString()
+                                            }.getOrDefault(pkg)
+                                        }
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(label, modifier = Modifier.weight(1f))
+                                        TextButton(onClick = {
+                                            r = r.copy(excludedPackages = r.excludedPackages - pkg)
+                                        }) { ButtonLabel(stringResource(R.string.rules_remove_exclusion)) }
+                                    }
+                                }
+                            }
+
+                            if (r.isConversationRule) {
+                                if (chatIsGroup) {
+                                    Caption(stringResource(R.string.rules_chat_is_group))
+                                } else {
+                                    ToggleRow(
+                                        stringResource(R.string.rules_include_groups), r.includeGroups,
+                                    ) {
+                                        r = r.copy(includeGroups = it)
+                                    }
+                                    Caption(stringResource(R.string.rules_include_groups_hint))
+                                }
+                            }
+                        }
+
+                        if (r.pattern.usesSpeed) {
+                            PixelSlider(
+                                stringResource(R.string.rules_time_per_cycle),
+                                r.speedMs.toFloat(),
+                                150f..5000f,
+                                { r = r.copy(speedMs = it.toInt()) },
+                                typeInSeconds = true,
+                            ) { formatDuration(it.toInt()) }
+                            r.pattern.cycleMeaningRes?.let { Caption(stringResource(it)) }
+                        }
+
+                        PixelSlider(
+                            stringResource(R.string.rules_brightness), r.brightness, 0.05f..1f,
+                            { r = r.copy(brightness = it) },
+                        ) { stringResource(R.string.common_percent, (it * 100).toInt()) }
+                    }
                 }
 
                 if (onCopy != null) {
@@ -965,6 +893,7 @@ private fun RuleEditorDialog(
             },
         )
     }
+
     if (pickingExcludedApp) {
         AppPickerDialog(
             alsoOffer = learnedPackages + r.excludedPackages,
@@ -988,29 +917,27 @@ private fun RuleEditorDialog(
         )
     }
 }
-        /**
-         * What a per-chat rule matches on, and the way out of a chat id that has gone stale.
-         */
-        @Composable
-        private fun ConversationMatchNote(edited: AppRule, stored: AppRule, onForgetKey: () -> Unit) {
-            val hasKey = !edited.conversationKey.isNullOrBlank()
-            val keyDropped = !hasKey && !stored.conversationKey.isNullOrBlank()
 
-            Caption(
-                when {
-                    hasKey -> stringResource(R.string.rules_match_by_id)
-                    keyDropped -> stringResource(R.string.rules_match_id_dropped)
-                    else -> stringResource(R.string.rules_match_by_name, edited.label)
-                }
-            )
+@Composable
+private fun ConversationMatchNote(edited: AppRule, stored: AppRule, onForgetKey: () -> Unit) {
+    val hasKey = !edited.conversationKey.isNullOrBlank()
+    val keyDropped = !hasKey && !stored.conversationKey.isNullOrBlank()
 
-            if (hasKey) {
-                val withoutKey = edited.copy(conversationKey = null)
-                if (withoutKey.isConversationRule && ConversationMatch.isMatchable(withoutKey)) {
-                    TextButton(onClick = onForgetKey) {
-                        ButtonLabel(stringResource(R.string.rules_relearn_chat))
-                    }
-                    Caption(stringResource(R.string.rules_relearn_hint))
-                }
-            }
+    Caption(
+        when {
+            hasKey -> stringResource(R.string.rules_match_by_id)
+            keyDropped -> stringResource(R.string.rules_match_id_dropped)
+            else -> stringResource(R.string.rules_match_by_name, edited.label)
         }
+    )
+
+    if (hasKey) {
+        val withoutKey = edited.copy(conversationKey = null)
+        if (withoutKey.isConversationRule && ConversationMatch.isMatchable(withoutKey)) {
+            TextButton(onClick = onForgetKey) {
+                ButtonLabel(stringResource(R.string.rules_relearn_chat))
+            }
+            Caption(stringResource(R.string.rules_relearn_hint))
+        }
+    }
+}
