@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -32,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -52,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -327,6 +330,9 @@ private fun offersConversations(store: Store, app: InstalledApp): Boolean =
     app.pkg != AppRule.ANY_APP &&
             (store.conversationsFor(app.pkg).isNotEmpty() || MessagingApps.looksLikeMessaging(app.pkg))
 
+/**
+ * One rule card: compact by default, expandable on tap to reveal LED preview and action buttons.
+ */
 @Composable
 private fun RuleCard(
     rule: AppRule,
@@ -339,17 +345,22 @@ private fun RuleCard(
 ) {
     val haptics = LocalHapticFeedback.current
     val perChat = rule.isConversationRule
+    var expanded by remember { mutableStateOf(false) }
+    val arrowRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "cardArrow")
+
     PixelCard(
-        modifier = if (perChat) Modifier.padding(start = 14.dp) else Modifier,
+        modifier = (if (perChat) Modifier.padding(start = 14.dp) else Modifier)
+            .clickable { expanded = !expanded },
         tone = if (perChat) 0 else 1,
     ) {
+        // --- 1. RIGA COMPATTA SEMPRE VISIBILE (~58dp) ---
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.fillMaxWidth(0.72f),
+                Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -360,7 +371,7 @@ private fun RuleCard(
                             .background(Color(rule.color), CircleShape)
                     )
                 }
-                Column {
+                Column(Modifier.weight(1f)) {
                     if (perChat) {
                         Caption(ruleLabel(rule))
                         Row(
@@ -372,73 +383,107 @@ private fun RuleCard(
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
                             )
                             when {
                                 chat?.isGroup == true || rule.conversationIsGroup ->
                                     ConversationBadge(stringResource(R.string.chat_badge_group))
-
                                 rule.includeGroups ->
                                     ConversationBadge(stringResource(R.string.rules_badge_groups_too))
                             }
                         }
                     } else {
-                        Text(ruleLabel(rule), style = MaterialTheme.typography.titleMedium)
-                    }
-                    Caption(
-                        stringResource(
-                            R.string.rules_card_summary,
-                            if (rule.randomColor) stringResource(R.string.rules_random_colour)
-                            else stringResource(rule.pattern.labelRes),
-                            if (rule.trigger == Trigger.NOTIFICATION)
-                                stringResource(R.string.rules_trigger_notification_short)
-                            else stringResource(R.string.rules_trigger_foreground_short),
+                        Text(
+                            ruleLabel(rule),
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    )
-                    if (rule.trigger == Trigger.NOTIFICATION && rule.eventTarget != EventTarget.ALL) {
-                        Caption(if (rule.eventTarget == EventTarget.CALLS_ONLY) "Solo chiamate" else "Solo messaggi")
                     }
-                    if (rule.trigger == Trigger.NOTIFICATION) {
+
+                    // Sottotitolo sintetico su riga singola con indicatori essenziali
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Caption(
-                            if (lastMatchedMs != null) {
-                                stringResource(
-                                    R.string.rules_last_matched, relativeAgo(lastMatchedMs),
-                                )
-                            } else {
-                                stringResource(R.string.rules_not_matched_yet)
-                            }
+                            if (rule.randomColor) stringResource(R.string.rules_random_colour)
+                            else stringResource(rule.pattern.labelRes)
                         )
+                        if (rule.trigger == Trigger.NOTIFICATION && rule.eventTarget != EventTarget.ALL) {
+                            Caption("• " + if (rule.eventTarget == EventTarget.CALLS_ONLY) "Chiamate" else "Messaggi")
+                        }
+                        if (rule.knockEnabled) {
+                            Caption("• Knock")
+                        }
                     }
                 }
             }
-            Switch(
-                checked = rule.enabled,
-                onCheckedChange = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onToggle(it)
-                },
-            )
+
+            // Controlli rapidi: Switch e freccia di stato espansione
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Switch(
+                    checked = rule.enabled,
+                    onCheckedChange = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggle(it)
+                    },
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.rotate(arrowRotation),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        LedStrip(
-            rule.pattern,
-            Ambient(
-                pattern = rule.pattern,
-                color = rule.color,
-                speedMs = rule.speedMs,
-                brightness = rule.brightness,
-            ),
-            active = rule.enabled,
-            heightDp = 34,
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                ButtonLabel(stringResource(R.string.common_edit))
-            }
-            FilledTonalButton(onClick = onTest, modifier = Modifier.weight(1f)) {
-                ButtonLabel(stringResource(R.string.common_test))
-            }
-            TextButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
-                ButtonLabel(stringResource(R.string.common_delete))
+
+        // --- 2. CONTENUTO ESPANDIBILE (Striscia LED, cronologia e azioni) ---
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (rule.trigger == Trigger.NOTIFICATION) {
+                    Caption(
+                        if (lastMatchedMs != null) {
+                            stringResource(R.string.rules_last_matched, relativeAgo(lastMatchedMs))
+                        } else {
+                            stringResource(R.string.rules_not_matched_yet)
+                        }
+                    )
+                }
+
+                LedStrip(
+                    rule.pattern,
+                    Ambient(
+                        pattern = rule.pattern,
+                        color = rule.color,
+                        speedMs = rule.speedMs,
+                        brightness = rule.brightness,
+                    ),
+                    active = rule.enabled,
+                    heightDp = 32,
+                )
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
+                        ButtonLabel(stringResource(R.string.common_edit))
+                    }
+                    FilledTonalButton(onClick = onTest, modifier = Modifier.weight(1f)) {
+                        ButtonLabel(stringResource(R.string.common_test))
+                    }
+                    TextButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
+                        ButtonLabel(stringResource(R.string.common_delete))
+                    }
+                }
             }
         }
     }
@@ -757,19 +802,6 @@ private fun RuleEditorDialog(
                                 r = r.copy(ignoreSilent = it)
                             }
                             Caption(stringResource(R.string.rules_ignore_silent_hint))
-
-                            ToggleRow(stringResource(R.string.rules_repeat_pending), r.repeatWhilePending) {
-                                r = r.copy(repeatWhilePending = it)
-                            }
-                            if (r.repeatWhilePending) {
-                                Caption(stringResource(R.string.rules_repeat_pending_hint))
-                                PixelSlider(
-                                    stringResource(R.string.rules_repeat_interval),
-                                    r.repeatIntervalMs.toFloat(), 5_000f..60_000f,
-                                    { r = r.copy(repeatIntervalMs = it.toInt()) },
-                                    typeInSeconds = true,
-                                ) { formatDuration(it.toInt()) }
-                            }
 
                             ToggleRow(
                                 stringResource(R.string.rules_only_screen_off), r.onlyWhenScreenOff,

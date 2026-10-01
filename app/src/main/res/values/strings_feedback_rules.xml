@@ -8,7 +8,4 @@
     <string name="rules_exclude_app">Exclude an app</string>
     <string name="rules_exclude_app_hint">Excluded apps skip this Any app rule. Their own rules can still light up.</string>
     <string name="rules_remove_exclusion">Remove</string>
-    <string name="rules_repeat_pending">Remind while notification is pending</string>
-    <string name="rules_repeat_pending_hint">Show brief reminders until the notification is dismissed or you unlock the phone. Quiet hours and battery limits still apply. Reminders may be delayed while the phone sleeps.</string>
-    <string name="rules_repeat_interval">Time between reminders</string>
 </resources>

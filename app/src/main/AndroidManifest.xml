@@ -102,10 +102,5 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Monitors foreground apps and phone orientation for user-configured HiLight rules" />
         </service>
-
-        <!-- Promemoria / Allarmi HiLight -->
-        <receiver
-            android:name=".ReminderReceiver"
-            android:exported="false" />
     </application>
 </manifest>

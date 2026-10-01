@@ -3187,20 +3187,6 @@ class Store private constructor(private val app: Context) {
         }
         root.put("rules", rulesArray)
 
-        val remindersPrefs = app.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
-        val reminderObj = JSONObject().apply {
-            put("is_active", remindersPrefs.getBoolean("is_active", false))
-            put("active_interval_minutes", remindersPrefs.getInt("active_interval_minutes", 60))
-            put("saved_rule_pattern", remindersPrefs.getString("saved_rule_pattern", Pattern.PULSE.name))
-            put("saved_rule_color", remindersPrefs.getInt("saved_rule_color", 0xFF00E5FF.toInt()))
-            put("saved_rule_speed", remindersPrefs.getInt("saved_rule_speed", 1000))
-            put("saved_rule_brightness", remindersPrefs.getFloat("saved_rule_brightness", 1.0f).toDouble())
-            put("saved_rule_duration", remindersPrefs.getInt("saved_rule_duration", 4000))
-            put("saved_rule_screen_off", remindersPrefs.getBoolean("saved_rule_screen_off", false))
-            put("saved_rule_face_down", remindersPrefs.getBoolean("saved_rule_face_down", false))
-        }
-        root.put("reminders", reminderObj)
-
         return root.toString(2)
     }
 
@@ -3238,22 +3224,6 @@ class Store private constructor(private val app: Context) {
                 }
             }
 
-            if (root.has("reminders")) {
-                val r = root.getJSONObject("reminders")
-                val remindersPrefs = app.getSharedPreferences("reminders_prefs", Context.MODE_PRIVATE)
-                remindersPrefs.edit().apply {
-                    putBoolean("is_active", r.optBoolean("is_active", false))
-                    putInt("active_interval_minutes", r.optInt("active_interval_minutes", 60))
-                    putString("saved_rule_pattern", r.optString("saved_rule_pattern", Pattern.PULSE.name))
-                    putInt("saved_rule_color", r.optInt("saved_rule_color", 0xFF00E5FF.toInt()))
-                    putInt("saved_rule_speed", r.optInt("saved_rule_speed", 1000))
-                    putFloat("saved_rule_brightness", r.optDouble("saved_rule_brightness", 1.0).toFloat())
-                    putInt("saved_rule_duration", r.optInt("saved_rule_duration", 4000))
-                    putBoolean("saved_rule_screen_off", r.optBoolean("saved_rule_screen_off", false))
-                    putBoolean("saved_rule_face_down", r.optBoolean("saved_rule_face_down", false))
-                    apply()
-                }
-            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "Errore durante l'import del backup", e)

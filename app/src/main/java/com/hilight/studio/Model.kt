@@ -83,8 +83,8 @@ enum class PrivacyActivity(val key: String, val appOp: String) {
 /** The always-on look: what HiLight shows when nothing else is happening. */
 data class Ambient(
     val pattern: Pattern = Pattern.OFF,
-    val color: Int = 0xFF7C4DFF.toInt(),
-    val secondColor: Int = 0xFF00E5FF.toInt(),
+    val color: Int = CalibratedLedColors.PURPLE,
+    val secondColor: Int = CalibratedLedColors.CYAN,
     val perLed: List<Int> = DEFAULT_PER_LED,
     val brightness: Float = 0.7f,
     val speedMs: Int = 2500,
@@ -116,12 +116,12 @@ data class Ambient(
     }
 
     companion object {
-        private val DEFAULT_PER_LED = List(LED_COUNT) { 0xFF7C4DFF.toInt() }
+        private val DEFAULT_PER_LED = List(LED_COUNT) { CalibratedLedColors.PURPLE }
 
         fun fromJson(o: JSONObject) = Ambient(
             pattern = Pattern.of(o.optString("pattern", "off")),
-            color = o.optLong("color", 0xFF7C4DFFL).toInt(),
-            secondColor = o.optLong("secondColor", 0xFF00E5FFL).toInt(),
+            color = o.optLong("color", CalibratedLedColors.PURPLE.toLong()).toInt(),
+            secondColor = o.optLong("secondColor", CalibratedLedColors.CYAN.toLong()).toInt(),
             perLed = o.optJSONArray("perLed")?.let { a ->
                 (0 until a.length()).map { a.optLong(it).toInt() }
             }?.takeIf { it.size == LED_COUNT } ?: DEFAULT_PER_LED,
@@ -161,69 +161,39 @@ data class AppRule(
     val trigger: Trigger = Trigger.NOTIFICATION,
     val pattern: Pattern = Pattern.PULSE,
     val randomColor: Boolean = false,
-    val color: Int = 0xFF00E676.toInt(),
+    val color: Int = CalibratedLedColors.EMERALD_GREEN,
     val durationMs: Int = 10_000,
     val speedMs: Int = 800,
     val brightness: Float = 1f,
     val onlyWhenScreenOff: Boolean = false,
     val onlyWhenFaceDown: Boolean = false,
-    /** only fire when the title or text contains this, case-insensitive; empty means anything */
     val keyword: String = "",
-    /**
-     * Per-conversation rules — "green when Sujay messages on WhatsApp".
-     *
-     * [conversationKey] is the notification's `shortcutId`, the stable per-chat id. It is filled in
-     * the first time a matching notification is seen, even for a rule created from the contact
-     * picker, after which renaming the contact can no longer break the rule. [conversationName] is
-     * the fallback for apps that set no shortcutId, and what the card shows.
-     */
     val conversationKey: String? = null,
     val conversationName: String? = null,
-    /** also fire when this person speaks inside a group, not only in their own chat */
     val includeGroups: Boolean = false,
-    /**
-     * Whether the chat this rule was made from is itself a group.
-     *
-     * Carried on the rule rather than looked up, because the learned-chat list is capped and a rule
-     * made from the contact picker was never in it at all — so the card had no way to tell a group
-     * from a person, and the editor could not explain why the "also in groups" switch is irrelevant
-     * for a rule that already names a group.
-     */
     val conversationIsGroup: Boolean = false,
-    /** Full saved look, copied into the rule so editing or deleting a preset cannot change it. */
     val look: Ambient? = null,
     val ignoreSilent: Boolean = false,
-    val repeatWhilePending: Boolean = false,
-    val repeatIntervalMs: Int = 15_000,
-    /** Exclusions apply only to catch-all rules, leaving explicit app rules independent. */
     val excludedPackages: Set<String> = emptySet(),
     val eventTarget: EventTarget = EventTarget.ALL,
     val knockEnabled: Boolean = false,
 ) {
     fun effectiveLook(colorOverride: Int = color): Ambient =
         (look ?: Ambient(secondColor = colorOverride, randomIntervalMs = 500)).copy(
-        pattern = pattern, color = colorOverride, speedMs = speedMs, brightness = brightness,
-    )
+            pattern = pattern, color = colorOverride, speedMs = speedMs, brightness = brightness,
+        )
 
     fun withLook(value: Ambient): AppRule = copy(
         look = value, pattern = value.pattern, color = value.color,
         speedMs = value.speedMs, brightness = value.brightness, randomColor = false,
     )
 
-    /** The catch-all rule, which matches any app without one of its own. */
     val isCatchAll: Boolean get() = pkg == ANY_APP
-
-    /** True for a rule scoped to one chat rather than to a whole app. */
     val isConversationRule: Boolean
         get() = !conversationKey.isNullOrBlank() || !conversationName.isNullOrBlank()
 
-    /**
-     * Identity for storage.
-     *
-     * Package plus trigger used to be enough, but an app can now hold several rules — one per
-     * conversation, plus a plain one for everything else — so the conversation has to be part of it.
-     */
     val id: String = "$pkg|${trigger.name}|${conversationKey ?: conversationName ?: ""}|${eventTarget.name}"
+
     fun toPrefsJson(): JSONObject = JSONObject().apply {
         put("pkg", pkg)
         put("label", label)
@@ -244,15 +214,12 @@ data class AppRule(
         put("conversationIsGroup", conversationIsGroup)
         look?.let { put("look", it.toPrefsJson()) }
         put("ignoreSilent", ignoreSilent)
-        put("repeatWhilePending", repeatWhilePending)
-        put("repeatIntervalMs", repeatIntervalMs.coerceIn(5_000, 60_000))
         put("excludedPackages", JSONArray().also { a -> excludedPackages.sorted().forEach(a::put) })
         put("eventTarget", eventTarget.name)
         put("knockEnabled", knockEnabled)
     }
 
     companion object {
-        /** Package sentinel for the catch-all rule. */
         const val ANY_APP = "*"
 
         fun fromJson(o: JSONObject) = AppRule(
@@ -263,7 +230,7 @@ data class AppRule(
                 .getOrDefault(Trigger.NOTIFICATION),
             pattern = Pattern.of(o.optString("pattern", "pulse")),
             randomColor = o.optBoolean("randomColor", false),
-            color = o.optLong("color", 0xFF00E676L).toInt(),
+            color = o.optLong("color", CalibratedLedColors.EMERALD_GREEN.toLong()).toInt(),
             durationMs = o.optInt("durationMs", 10_000),
             speedMs = o.optInt("speedMs", 800),
             brightness = o.optDouble("brightness", 1.0).toFloat(),
@@ -276,8 +243,6 @@ data class AppRule(
             conversationIsGroup = o.optBoolean("conversationIsGroup", false),
             look = o.optJSONObject("look")?.let(Ambient::fromJson),
             ignoreSilent = o.optBoolean("ignoreSilent", false),
-            repeatWhilePending = o.optBoolean("repeatWhilePending", false),
-            repeatIntervalMs = o.optInt("repeatIntervalMs", 15_000).coerceIn(5_000, 60_000),
             excludedPackages = o.optJSONArray("excludedPackages")?.let { a ->
                 (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotBlank) }.toSet()
             } ?: emptySet(),
@@ -297,7 +262,7 @@ data class PrivacyRule(
     val enabled: Boolean = true,
     val pattern: Pattern = Pattern.BLINK,
     val color: Int,
-    val secondColor: Int = 0xFF00E5FF.toInt(),
+    val secondColor: Int = CalibratedLedColors.CYAN,
     val lightMs: Int = DEFAULT_LIGHT_MS,
     val cooldownMs: Int = DEFAULT_COOLDOWN_MS,
     val speedMs: Int = 800,
@@ -320,7 +285,6 @@ data class PrivacyRule(
         put("brightness", brightness.toDouble())
     }
 
-    /** The renderer does not need the translated app label. */
     fun toRendererJson(): JSONObject = JSONObject().apply {
         put("id", id)
         put("activity", activity.key)
@@ -348,7 +312,6 @@ data class PrivacyRule(
         const val MIN_PHASE_MS = 1_000
         const val MAX_PHASE_MS = 60_000
 
-        /** Every built-in one-rule look; Off and per-LED Custom are not trigger effects. */
         val selectablePatterns: List<Pattern>
             get() = Pattern.entries.filter { it != Pattern.OFF && it != Pattern.CUSTOM }
 
@@ -361,12 +324,11 @@ data class PrivacyRule(
             pkg = pkg,
             appLabel = appLabel,
             color = when (activity) {
-                PrivacyActivity.MICROPHONE -> 0xFFFF1744.toInt()
-                PrivacyActivity.CAMERA -> 0xFF00E676.toInt()
+                PrivacyActivity.MICROPHONE -> CalibratedLedColors.RED
+                PrivacyActivity.CAMERA -> CalibratedLedColors.EMERALD_GREEN
             },
         )
 
-        /** Unknown future activities are ignored so an older app can still load the remaining list. */
         fun fromJson(o: JSONObject): PrivacyRule? {
             val activity = PrivacyActivity.of(o.optString("activity")) ?: return null
             val defaults = default(activity)
@@ -408,7 +370,6 @@ data class Preset(val name: String, val ambient: Ambient) {
     }
 }
 
-/** Why the array is being held dark despite the master switch being on. */
 enum class Suppression(@StringRes val shortRes: Int) {
     QUIET_HOURS(R.string.suppression_quiet_hours),
     LOW_BATTERY(R.string.suppression_low_battery),
@@ -417,77 +378,58 @@ enum class Suppression(@StringRes val shortRes: Int) {
     NOT_FACE_DOWN(R.string.suppression_not_face_down),
 }
 
-/** Nothing may run indefinitely: these are the ceilings the UI enforces. */
 object Limits {
-    /** Battery level at or below which the array pauses, unless the user moves it. */
     const val BATTERY_DEFAULT_PCT = 10
     const val BATTERY_MIN_PCT = 5
     const val BATTERY_MAX_PCT = 50
     const val AMBIENT_DEFAULT_MS = 30_000
-    const val AMBIENT_MAX_MS = 300_000          // 5 minutes, behind two warnings
+    const val AMBIENT_MAX_MS = 300_000
     const val RULE_DEFAULT_MS = 10_000
-    const val RULE_MAX_MS = 60_000              // 1 minute, behind two warnings
-    const val WARN_ABOVE_MS = 30_000            // anything longer than this warns twice
+    const val RULE_MAX_MS = 60_000
+    const val WARN_ABOVE_MS = 30_000
 }
 
-/** Whether the privileged process is provably running the renderer bundled with this app. */
 enum class RendererCompatibility { CURRENT, INCOMPATIBLE, UNKNOWN }
 
-/** What the helper is reporting back. */
 data class HelperStatus(
     val alive: Boolean,
     val ageMs: Long = -1,
     val pid: Int = -1,
     val uid: Int = -1,
     val owner: String = "",
-    /** Per-process nonce emitted by file-bridge helpers; prevents another writer hiding the source. */
     val rendererInstanceId: String = "",
-    /** False only when the latest file-bridge read could not prove a complete process identity. */
     val identityResolved: Boolean = true,
     val ledCount: Int = 0,
     val sessionOpen: Boolean = false,
-    /** the renderer still owes the framework a two-step black clear */
     val blackClearPending: Boolean = false,
-    /** true once the current cycle can no longer make forward progress without a new trigger */
     val blackClearTerminal: Boolean = false,
     val blackClearResult: String = "not_requested",
     val blackClearAttemptResult: String = "not_requested",
     val blackClearStage: String = "idle",
     val blackClearTimestampElapsedMs: Long = 0,
     val blackClearCycleId: Long = 0,
-    /** Whether the current bounded cleanup cycle was automatic or explicitly requested. */
     val blackClearCycleSource: String = "automatic",
     val blackClearAttemptsUsed: Int = 0,
-    /** bounded post-release recovery attempts left for the most recent visible frame */
     val blackClearAttemptsRemaining: Int = 0,
     val blackClearStopAttemptAvailable: Boolean = false,
     val blackClearCloseFailures: Int = 0,
-    /** Final close override also failed; ownership remains unresolved until this process exits. */
     val blackClearUnreleasedFatal: Boolean = false,
     val lightMinUpdatePeriodMs: Long = 0,
     val blackClearStrategy: String = "unknown",
     val blackClearStrategyVersion: Int = 0,
-    /** Actual build loaded by the privileged renderer; distinct from the installed app build. */
     val rendererVersionCode: Int = -1,
     val rendererVersionName: String = "",
     val rendererContractVersion: Int = -1,
     val rendererImplementationRevision: Int = -1,
     val rendererStatusSchemaVersion: Int = -1,
     val rendererClearAlgorithmVersion: Int = -1,
-    /** Composite lifecycle version used by Shizuku; unavailable for file-bridge renderers. */
     val rendererServiceVersion: Int = -1,
-    /** Shizuku reports this explicitly; a live ADB/root helper has already started its engine. */
     val rendererReady: Boolean = false,
     val mode: String = "-",
-    /** ms left on the ambient auto-off window at the moment this status was read */
     val ambientRemainingMs: Long = 0,
-    /** the auto-off window has expired and the array is dark until the user acts */
     val ambientHeld: Boolean = false,
-    /** the duty-cycle guard is resting the array */
     val resting: Boolean = false,
-    /** how much of the duty allowance is used, 0-100 */
     val dutyPct: Int = 0,
-    /** Legacy alias for [receivedStateRevision], kept for v1.0.8 bridge compatibility. */
     val appliedStateRevision: Long = 0,
     val receivedStateRevision: Long = appliedStateRevision,
     val settledStateRevision: Long = 0,
@@ -501,7 +443,7 @@ data class HelperStatus(
     val rendererCompatibility: RendererCompatibility
         get() = when {
             rendererContractVersion < 0 || rendererImplementationRevision < 0 ||
-                rendererStatusSchemaVersion < 0 || rendererClearAlgorithmVersion < 0 ->
+                    rendererStatusSchemaVersion < 0 || rendererClearAlgorithmVersion < 0 ->
                 RendererCompatibility.UNKNOWN
             RendererContract.isCompatible(
                 rendererContractVersion,
@@ -512,17 +454,11 @@ data class HelperStatus(
             else -> RendererCompatibility.INCOMPATIBLE
         }
 
-    /**
-     * A recorded process remains stale even after its heartbeat expires when its renderer is legacy,
-     * incompatible or not ready. Absence (no PID) and an expired proven-current renderer are not
-     * stale; callers can distinguish the latter through [pid] and [alive].
-     */
     val rendererStale: Boolean
         get() = (alive || pid > 0) &&
-            (rendererCompatibility != RendererCompatibility.CURRENT || !rendererReady)
+                (rendererCompatibility != RendererCompatibility.CURRENT || !rendererReady)
 }
 
-/** One internally consistent renderer sample used when the user copies diagnostics. */
 data class RendererStatusSnapshot(
     val status: HelperStatus,
     val selectedTransport: Transport,
@@ -531,3 +467,36 @@ data class RendererStatusSnapshot(
 )
 
 const val LED_COUNT = 8
+
+/**
+ * Palette calibrata specificamente per LED fisici RGB.
+ *
+ * I display tradizionali usano colori con saturazione bilanciata per pannelli OLED/LCD (es. #FFFF00 o #00FFFF).
+ * Sui LED fisici, i canali multi-colore saturano la percezione retinica e la lente ottica, sbiancando la luce.
+ * Questi valori compensano lo squilibrio fotopico e preservano una cromia solida, densa e riconoscibile.
+ */
+object CalibratedLedColors {
+    val RED = 0xFFFF0010.toInt()            // Rosso puro solido
+    val ORANGE = 0xFFFF3B00.toInt()         // Arancione saturo (non vira a giallino)
+    val AMBER_YELLOW = 0xFFFF8C00.toInt()   // Giallo ambra caldo (elimina la luce bianca/slavata)
+    val EMERALD_GREEN = 0xFF00E630.toInt()  // Verde smeraldo puro
+    val CYAN = 0xFF00C8B0.toInt()           // Ciano/Turchese bilanciato (non abbaglia di bianco)
+    val SAPPHIRE_BLUE = 0xFF0033FF.toInt()  // Blu profondo intenso
+    val PURPLE = 0xFF7B1FA2.toInt()         // Viola saturo equilibrato
+    val FUCHSIA = 0xFFE91E63.toInt()        // Magenta / Deep Pink vibrante
+    val PINK = 0xFFFF1493.toInt()           // Rosa ottico evidente (non slavato)
+    val WARM_WHITE = 0xFFFFE0BD.toInt()     // Bianco caldo a ~4000K
+
+    val PALETTE: List<Int> = listOf(
+        RED,
+        ORANGE,
+        AMBER_YELLOW,
+        EMERALD_GREEN,
+        CYAN,
+        SAPPHIRE_BLUE,
+        PURPLE,
+        FUCHSIA,
+        PINK,
+        WARM_WHITE,
+    )
+}
