@@ -1,5 +1,6 @@
 package com.hilight.studio
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -42,7 +43,12 @@ internal object GitHubUpdateChecker {
             connection.setRequestProperty("X-GitHub-Api-Version", "2026-03-10")
             connection.setRequestProperty("User-Agent", "HiLight-Studio/$currentVersionName")
 
+            if (connection.responseCode == 404) {
+                connection.errorStream?.close()
+                return UpdateCheckResult.NoPublishedRelease
+            }
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                Log.e("GitHubUpdateChecker", "HTTP Error: ${connection.responseCode}")
                 connection.errorStream?.close()
                 UpdateCheckResult.Failed
             } else {
@@ -51,7 +57,8 @@ internal object GitHubUpdateChecker {
                 }
                 resolve(currentVersionName, response)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("GitHubUpdateChecker", "Network or connection error", e)
             UpdateCheckResult.Failed
         } finally {
             connection?.disconnect()
@@ -102,7 +109,8 @@ internal object GitHubUpdateChecker {
         } else {
             UpdateCheckResult.Current(latest.version.displayName)
         }
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.e("GitHubUpdateChecker", "Error parsing response", e)
         UpdateCheckResult.Failed
     }
 

@@ -733,7 +733,7 @@ fun SetupScreen(store: Store) {
                                 "Nuova versione disponibile: ${(updateResult as UpdateCheckResult.Available).release.versionName}"
                             )
                             updateResult is UpdateCheckResult.NoPublishedRelease ->
-                                Caption("Nessuna release trovata")
+                                Caption("Nessuna release pubblicata sul repository remoto")
                             updateResult is UpdateCheckResult.Failed -> Caption("Impossibile connettersi a GitHub")
                             else -> Caption("Verifica se è presente una nuova build sul repository.")
                         }
