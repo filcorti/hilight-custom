@@ -168,6 +168,88 @@ object Renderer {
                 }
             }
 
+            Pattern.SCANNER -> {
+                val phase = (t % speed) / speed.toDouble()
+                val pos = (1 - cos(phase * 2 * PI)) / 2 * (n - 1)
+                for (i in 0 until n) {
+                    val d = kotlin.math.abs(pos - i)
+                    val k = max(0.0, 1.0 - d / 1.5)
+                    out[i] = scale(base, k * k)
+                }
+            }
+
+            Pattern.DIVERGE -> {
+                val phase = (t % speed) / speed.toDouble()
+                val center1 = (n - 1) / 2.0
+                val center2 = n / 2.0
+                val pos = phase * (n / 2.0 + 1)
+                for (i in 0 until n) {
+                    val d1 = kotlin.math.abs((center1 - pos) - i)
+                    val d2 = kotlin.math.abs((center2 + pos) - i)
+                    val k = max(0.0, 1.0 - min(d1, d2))
+                    out[i] = scale(base, k)
+                }
+            }
+
+            Pattern.CLOCKWISE_FILL -> {
+                val phase = (t % speed) / speed.toDouble()
+                if (phase < 0.8) {
+                    val activeLeds = (phase / 0.8 * n).toInt()
+                    for (i in 0 until n) {
+                        out[i] = if (i <= activeLeds) base else 0xFF000000.toInt()
+                    }
+                } else {
+                    val fade = 1.0 - (phase - 0.8) / 0.2
+                    for (i in 0 until n) out[i] = scale(base, fade)
+                }
+            }
+
+            Pattern.AURORA -> {
+                val phase = (t % speed) / speed.toDouble()
+                for (i in 0 until n) {
+                    val p1 = sin(2 * PI * (phase + i.toDouble() / n))
+                    val p2 = sin(2 * PI * (phase * 1.5 - i.toDouble() / (n * 1.5)))
+                    val k = (p1 + p2 + 2) / 4.0
+                    val mixedColor = mix(0xFF00E5FF.toInt(), 0xFF7C4DFF.toInt(), k)
+                    out[i] = scale(mixedColor, 0.4 + 0.6 * k)
+                }
+            }
+
+            Pattern.FIRE -> {
+                val step = t / 100
+                for (i in 0 until n) {
+                    val noise = ((step * 31 + i * 17) % 100) / 100.0
+                    val heat = 0.5 + 0.5 * noise
+                    val fireColor = mix(0xFFFF0000.toInt(), 0xFFFFA500.toInt(), heat)
+                    out[i] = scale(fireColor, 0.5 + 0.5 * noise)
+                }
+            }
+
+            Pattern.RIPPLE -> {
+                val phase = (t % speed) / speed.toDouble()
+                val center = (n - 1) / 2.0
+                val radius = phase * n
+                for (i in 0 until n) {
+                    val d = kotlin.math.abs(center - i)
+                    val diff = kotlin.math.abs(radius - d)
+                    val k = max(0.0, 1.0 - diff * 1.5)
+                    out[i] = scale(base, k * exp(-phase * 3.0))
+                }
+            }
+
+            Pattern.SPARKLE -> {
+                val phase = (t % speed) / speed.toDouble()
+                val step = t / 50
+                for (i in 0 until n) {
+                    val noise = ((step * 13 + i * 7) % 100) / 100.0
+                    if (noise > 0.98) {
+                        out[i] = base
+                    } else {
+                        out[i] = scale(base, 0.05)
+                    }
+                }
+            }
+
             Pattern.RANDOM -> {
                 // deterministic stand-in so the preview animates without flickering randomly
                 val step = t / max(120, cfg.randomIntervalMs).toLong()

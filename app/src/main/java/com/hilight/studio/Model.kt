@@ -50,6 +50,13 @@ enum class Pattern(
     RADAR("radar", R.string.pattern_radar, cycleMeaningRes = R.string.cycle_radar),
     CONVERGE("converge", R.string.pattern_converge, cycleMeaningRes = R.string.cycle_converge),
     GLITCH("glitch", R.string.pattern_glitch, cycleMeaningRes = R.string.cycle_glitch),
+    SCANNER("scanner", R.string.pattern_scanner, cycleMeaningRes = R.string.cycle_scanner),
+    DIVERGE("diverge", R.string.pattern_diverge, cycleMeaningRes = R.string.cycle_diverge),
+    CLOCKWISE_FILL("clockwise_fill", R.string.pattern_clockwise_fill, cycleMeaningRes = R.string.cycle_clockwise_fill),
+    AURORA("aurora", R.string.pattern_aurora, cycleMeaningRes = R.string.cycle_aurora),
+    FIRE("fire", R.string.pattern_fire, usesSpeed = false),
+    RIPPLE("ripple", R.string.pattern_ripple, cycleMeaningRes = R.string.cycle_ripple),
+    SPARKLE("sparkle", R.string.pattern_sparkle, cycleMeaningRes = R.string.cycle_sparkle),
     RANDOM("random", R.string.pattern_random, usesSpeed = false),
     CUSTOM("custom", R.string.pattern_custom, usesSpeed = false);
 

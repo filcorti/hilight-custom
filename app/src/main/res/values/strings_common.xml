@@ -39,6 +39,13 @@
     <string name="pattern_radar">Radar</string>
     <string name="pattern_converge">Converge</string>
     <string name="pattern_glitch">Glitch</string>
+    <string name="pattern_scanner">Scanner</string>
+    <string name="pattern_diverge">Diverge</string>
+    <string name="pattern_clockwise_fill">Clockwise Fill</string>
+    <string name="pattern_aurora">Aurora</string>
+    <string name="pattern_fire">Fire</string>
+    <string name="pattern_ripple">Ripple</string>
+    <string name="pattern_sparkle">Sparkle</string>
     <string name="pattern_random">Random colours</string>
     <string name="pattern_custom">Per-LED custom</string>
 
@@ -57,6 +64,12 @@
     <string name="cycle_radar">One smooth rotational radar sweep around the array.</string>
     <string name="cycle_converge">Two beams collide at the centre and burst outwards.</string>
     <string name="cycle_glitch">Erratic digital micro-sparks and cybernetic flickers.</string>
+    <string name="cycle_scanner">One smooth scanning sweep back and forth with a trail.</string>
+    <string name="cycle_diverge">One symmetric expansion from the center outwards.</string>
+    <string name="cycle_clockwise_fill">One progressive sequential fill, resetting afterwards.</string>
+    <string name="cycle_aurora">One ethereal shift of dual-tone wavy lights.</string>
+    <string name="cycle_ripple">One central impact with ripples propagating outwards.</string>
+    <string name="cycle_sparkle">One background glimmer punctuated by a random bright flash.</string>
 
     <!-- Why the array is being held dark -->
     <string name="suppression_quiet_hours">Quiet hours</string>

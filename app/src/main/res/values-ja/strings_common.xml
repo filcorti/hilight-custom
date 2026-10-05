@@ -58,6 +58,13 @@
     <string name="pattern_converge">コンバージ</string>
     <!-- "Glitch" -->
     <string name="pattern_glitch">グリッチ</string>
+    <string name="pattern_scanner">スキャナー</string>
+    <string name="pattern_diverge">ダイバージ</string>
+    <string name="pattern_clockwise_fill">時計回りフィル</string>
+    <string name="pattern_aurora">オーロラ</string>
+    <string name="pattern_fire">ファイヤー</string>
+    <string name="pattern_ripple">リップル</string>
+    <string name="pattern_sparkle">スパークル</string>
     <!-- "Random colours" -->
     <string name="pattern_random">ランダムな色</string>
     <!-- "Per-LED custom" -->
@@ -92,6 +99,12 @@
     <string name="cycle_converge">両端から光が集まって衝突し、外側へ広がります。</string>
     <!-- "Erratic digital micro-sparks and cybernetic flickers." -->
     <string name="cycle_glitch">サイバー感のある不規則なデジタル微光とスパークです。</string>
+    <string name="cycle_scanner">残像を伴って滑らかに左右を往復スキャンします。</string>
+    <string name="cycle_diverge">中央から外側へ対称的に光が広がります。</string>
+    <string name="cycle_clockwise_fill">LEDが順次点灯して埋まり、その後リセットされます。</string>
+    <string name="cycle_aurora">2色の光がゆらめく幻想的なオーロラ効果です。</string>
+    <string name="cycle_ripple">中央の衝撃から波紋が外側に広がります。</string>
+    <string name="cycle_sparkle">暗い背景にランダムで明るいフラッシュが瞬きます。</string>
 
     <!-- Why the array is being held dark -->
     <!-- "Quiet hours" -->
