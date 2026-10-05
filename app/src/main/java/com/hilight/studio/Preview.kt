@@ -8,6 +8,7 @@ import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 
 /**
@@ -173,34 +174,39 @@ object Renderer {
                 val pos = (1 - cos(phase * 2 * PI)) / 2 * (n - 1)
                 for (i in 0 until n) {
                     val d = kotlin.math.abs(pos - i)
-                    val k = max(0.0, 1.0 - d / 1.5)
-                    out[i] = scale(base, k * k)
+                    val k = max(0.0, 1.0 - d * 1.2)
+                    out[i] = scale(base, k * k * k)
                 }
             }
 
             Pattern.DIVERGE -> {
                 val phase = (t % speed) / speed.toDouble()
-                val center1 = (n - 1) / 2.0
-                val center2 = n / 2.0
-                val pos = phase * (n / 2.0 + 1)
+                val travel = phase * (n / 2.0)
+                val c1 = (n / 2.0 - 0.5) - travel
+                val c2 = (n / 2.0 - 0.5) + travel
                 for (i in 0 until n) {
-                    val d1 = kotlin.math.abs((center1 - pos) - i)
-                    val d2 = kotlin.math.abs((center2 + pos) - i)
-                    val k = max(0.0, 1.0 - min(d1, d2))
-                    out[i] = scale(base, k)
+                    val d1 = kotlin.math.abs(i - c1)
+                    val d2 = kotlin.math.abs(i - c2)
+                    val k = max(0.0, 1.0 - min(d1, d2) * 1.4)
+                    out[i] = scale(base, k * (1.0 - phase * 0.7))
                 }
             }
 
             Pattern.CLOCKWISE_FILL -> {
                 val phase = (t % speed) / speed.toDouble()
-                if (phase < 0.8) {
-                    val activeLeds = (phase / 0.8 * n).toInt()
+                if (phase < 0.75) {
+                    val progress = (phase / 0.75) * n
+                    val currentLed = progress.toInt()
                     for (i in 0 until n) {
-                        out[i] = if (i <= activeLeds) base else 0xFF000000.toInt()
+                        if (i < currentLed) out[i] = base
+                        else if (i == currentLed) out[i] = scale(base, progress - currentLed)
+                        else out[i] = 0xFF000000.toInt()
                     }
                 } else {
-                    val fade = 1.0 - (phase - 0.8) / 0.2
-                    for (i in 0 until n) out[i] = scale(base, fade)
+                    val fade = (1.0 - phase) / 0.25
+                    for (i in 0 until n) {
+                        out[i] = scale(base, fade)
+                    }
                 }
             }
 
@@ -211,17 +217,18 @@ object Renderer {
                     val p2 = sin(2 * PI * (phase * 1.5 - i.toDouble() / (n * 1.5)))
                     val k = (p1 + p2 + 2) / 4.0
                     val mixedColor = mix(0xFF00E5FF.toInt(), 0xFF7C4DFF.toInt(), k)
-                    out[i] = scale(mixedColor, 0.4 + 0.6 * k)
+                    out[i] = scale(mixedColor, k.pow(2.5))
                 }
             }
 
             Pattern.FIRE -> {
-                val step = t / 100
                 for (i in 0 until n) {
-                    val noise = ((step * 31 + i * 17) % 100) / 100.0
-                    val heat = 0.5 + 0.5 * noise
-                    val fireColor = mix(0xFFFF0000.toInt(), 0xFFFFA500.toInt(), heat)
-                    out[i] = scale(fireColor, 0.5 + 0.5 * noise)
+                    val wave1 = sin((t * 0.008) + i * 2.3)
+                    val wave2 = sin((t * 0.017) - i * 1.7)
+                    var intensity = max(0.0, wave1 * 0.5 + wave2 * 0.5 + 0.4)
+                    intensity = min(1.0, intensity * intensity)
+                    val fireColor = mix(0xFFFF1000.toInt(), 0xFFFF8C00.toInt(), intensity)
+                    out[i] = scale(fireColor, intensity)
                 }
             }
 
@@ -232,21 +239,17 @@ object Renderer {
                 for (i in 0 until n) {
                     val d = kotlin.math.abs(center - i)
                     val diff = kotlin.math.abs(radius - d)
-                    val k = max(0.0, 1.0 - diff * 1.5)
-                    out[i] = scale(base, k * exp(-phase * 3.0))
+                    val k = max(0.0, 1.0 - diff * 2.2)
+                    out[i] = scale(base, k * exp(-phase * 4.0))
                 }
             }
 
             Pattern.SPARKLE -> {
-                val phase = (t % speed) / speed.toDouble()
-                val step = t / 50
+                val slot = t / 80
+                var active = ((slot * 7 + (slot shr 2)) % n).toInt()
+                if (active < 0) active += n
                 for (i in 0 until n) {
-                    val noise = ((step * 13 + i * 7) % 100) / 100.0
-                    if (noise > 0.98) {
-                        out[i] = base
-                    } else {
-                        out[i] = scale(base, 0.05)
-                    }
+                    out[i] = if (i == active) base else scale(base, 0.02)
                 }
             }
 

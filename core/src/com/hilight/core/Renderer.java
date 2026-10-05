@@ -229,35 +229,38 @@ public final class Renderer {
                 double pos = (1 - Math.cos(phase * 2 * Math.PI)) / 2 * (n - 1);
                 for (int i = 0; i < n; i++) {
                     double d = Math.abs(pos - i);
-                    double k = Math.max(0.0, 1.0 - d / 1.5);
-                    out[i] = scale(palette[i % palette.length], k * k);
+                    double k = Math.max(0.0, 1.0 - d * 1.2);
+                    out[i] = scale(palette[i % palette.length], k * k * k);
                 }
                 break;
             }
 
             case "diverge": {
                 double phase = (t % speed) / (double) speed;
-                double center1 = (n - 1) / 2.0;
-                double center2 = n / 2.0;
-                double pos = phase * (n / 2.0 + 1);
+                double travel = phase * (n / 2.0);
+                double c1 = (n / 2.0 - 0.5) - travel;
+                double c2 = (n / 2.0 - 0.5) + travel;
                 for (int i = 0; i < n; i++) {
-                    double d1 = Math.abs((center1 - pos) - i);
-                    double d2 = Math.abs((center2 + pos) - i);
-                    double k = Math.max(0.0, 1.0 - Math.min(d1, d2));
-                    out[i] = scale(palette[i % palette.length], k);
+                    double d1 = Math.abs(i - c1);
+                    double d2 = Math.abs(i - c2);
+                    double k = Math.max(0.0, 1.0 - Math.min(d1, d2) * 1.4);
+                    out[i] = scale(palette[i % palette.length], k * (1.0 - phase * 0.7));
                 }
                 break;
             }
 
             case "clockwise_fill": {
                 double phase = (t % speed) / (double) speed;
-                if (phase < 0.8) {
-                    int activeLeds = (int) (phase / 0.8 * n);
+                if (phase < 0.75) {
+                    double progress = (phase / 0.75) * n;
+                    int currentLed = (int) progress;
                     for (int i = 0; i < n; i++) {
-                        out[i] = i <= activeLeds ? palette[i % palette.length] : 0xFF000000;
+                        if (i < currentLed) out[i] = palette[i % palette.length];
+                        else if (i == currentLed) out[i] = scale(palette[i % palette.length], progress - currentLed);
+                        else out[i] = 0xFF000000;
                     }
                 } else {
-                    double fade = 1.0 - (phase - 0.8) / 0.2;
+                    double fade = (1.0 - phase) / 0.25;
                     for (int i = 0; i < n; i++) {
                         out[i] = scale(palette[i % palette.length], fade);
                     }
@@ -272,18 +275,19 @@ public final class Renderer {
                     double p2 = Math.sin(2 * Math.PI * (phase * 1.5 - (double) i / (n * 1.5)));
                     double k = (p1 + p2 + 2) / 4.0;
                     int mixedColor = mix(0xFF00E5FF, 0xFF7C4DFF, k);
-                    out[i] = scale(mixedColor, 0.4 + 0.6 * k);
+                    out[i] = scale(mixedColor, Math.pow(k, 2.5));
                 }
                 break;
             }
 
             case "fire": {
-                long step = t / 100;
                 for (int i = 0; i < n; i++) {
-                    double noise = ((step * 31 + i * 17) % 100) / 100.0;
-                    double heat = 0.5 + 0.5 * noise;
-                    int fireColor = mix(0xFFFF0000, 0xFFFFA500, heat);
-                    out[i] = scale(fireColor, 0.5 + 0.5 * noise);
+                    double wave1 = Math.sin((t * 0.008) + i * 2.3);
+                    double wave2 = Math.sin((t * 0.017) - i * 1.7);
+                    double intensity = Math.max(0.0, (wave1 * 0.5 + wave2 * 0.5 + 0.4));
+                    intensity = Math.min(1.0, intensity * intensity);
+                    int fireColor = mix(0xFFFF1000, 0xFFFF8C00, intensity);
+                    out[i] = scale(fireColor, intensity);
                 }
                 break;
             }
@@ -295,21 +299,18 @@ public final class Renderer {
                 for (int i = 0; i < n; i++) {
                     double d = Math.abs(center - i);
                     double diff = Math.abs(radius - d);
-                    double k = Math.max(0.0, 1.0 - diff * 1.5);
-                    out[i] = scale(palette[i % palette.length], k * Math.exp(-phase * 3.0));
+                    double k = Math.max(0.0, 1.0 - diff * 2.2);
+                    out[i] = scale(palette[i % palette.length], k * Math.exp(-phase * 4.0));
                 }
                 break;
             }
 
             case "sparkle": {
-                long step = t / 50;
+                long slot = t / 80;
+                int active = (int) ((slot * 7 + (slot >> 2)) % n);
+                if (active < 0) active += n;
                 for (int i = 0; i < n; i++) {
-                    double noise = ((step * 13 + i * 7) % 100) / 100.0;
-                    if (noise > 0.98) {
-                        out[i] = palette[i % palette.length];
-                    } else {
-                        out[i] = scale(palette[i % palette.length], 0.05);
-                    }
+                    out[i] = (i == active) ? palette[i % palette.length] : scale(palette[i % palette.length], 0.02);
                 }
                 break;
             }
