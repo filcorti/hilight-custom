@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.FlashOn
 import androidx.compose.material.icons.rounded.Nightlight
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material3.MaterialTheme
@@ -209,38 +212,32 @@ fun LiveScreen(store: Store) {
         }
     }
 
-    // Each tile borrows its pattern's own name, so the label is a string resource id. Random is the
-    // exception: a third of a row is too narrow for "Random colours".
-    val tests: List<Triple<Int, ImageVector, Pair<Pattern, Int>>> = listOf(
-        Triple(Pattern.RAINBOW.shortLabelRes, Icons.Rounded.AutoAwesome, Pattern.RAINBOW to 0xFFFFFFFF.toInt()),
-        Triple(R.string.live_test_random, Icons.Rounded.Casino, Pattern.RANDOM to 0xFFFFFFFF.toInt()),
-        Triple(Pattern.STROBE.shortLabelRes, Icons.Rounded.FlashOn, Pattern.STROBE to 0xFFFFFFFF.toInt()),
-        Triple(Pattern.COMET.shortLabelRes, Icons.Rounded.Flare, Pattern.COMET to 0xFF00E5FF.toInt()),
-        Triple(Pattern.PULSE.shortLabelRes, Icons.Rounded.Bolt, Pattern.PULSE to 0xFFFF1744.toInt()),
-        Triple(Pattern.HEARTBEAT.shortLabelRes, Icons.Rounded.Favorite, Pattern.HEARTBEAT to 0xFFFF1744.toInt()),
-        Triple(Pattern.BREATHE.shortLabelRes, Icons.Rounded.Nightlight, Pattern.BREATHE to 0xFF7C4DFF.toInt()),
-        Triple(Pattern.WAVE.shortLabelRes, Icons.Rounded.Waves, Pattern.WAVE to 0xFF00E676.toInt()),
-        Triple(Pattern.RADAR.shortLabelRes, Icons.Rounded.Radar, Pattern.RADAR to 0xFF00E5FF.toInt()),
-    )
+    val allPatterns = remember { Pattern.entries.filter { it != Pattern.OFF } }
 
     PixelCard {
-        SectionTitle(stringResource(R.string.live_tests_title))
+        SectionTitle(
+            stringResource(R.string.live_tests_title),
+            trailing = {
+                Caption("${allPatterns.size} effetti")
+            }
+        )
         Caption(stringResource(R.string.live_tests_caption))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            tests.chunked(3).forEach { row ->
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        ) {
+            items(allPatterns, key = { it.key }) { pattern ->
+                val label = stringResource(pattern.shortLabelRes)
+                val icon = patternIcon(pattern)
+                val accent = tileAccent(pattern, 0xFFFFFFFF.toInt())
+                PixelTile(
+                    label = label,
+                    icon = icon,
+                    accent = accent,
+                    enabled = enabled && status.alive,
+                    modifier = Modifier.width(108.dp),
                 ) {
-                    row.forEach { (labelRes, icon, spec) ->
-                        PixelTile(
-                            label = stringResource(labelRes),
-                            icon = icon,
-                            accent = tileAccent(spec.first, spec.second),
-                            enabled = enabled && status.alive,
-                            modifier = Modifier.weight(1f),
-                        ) { launchPreview(spec.first, spec.second, 1200, 1f, 4_000) }
-                    }
+                    launchPreview(pattern, 0xFFFFFFFF.toInt(), 1200, 1f, 4_000)
                 }
             }
         }
@@ -284,4 +281,21 @@ fun LiveScreen(store: Store) {
             }
         }
     }
+}
+
+private fun patternIcon(pattern: Pattern): ImageVector = when (pattern) {
+    Pattern.SOLID, Pattern.GRADIENT, Pattern.CUSTOM -> Icons.Rounded.Palette
+    Pattern.BREATHE, Pattern.AURORA -> Icons.Rounded.Nightlight
+    Pattern.BLINK, Pattern.STROBE -> Icons.Rounded.FlashOn
+    Pattern.PULSE -> Icons.Rounded.Bolt
+    Pattern.CHASE, Pattern.WAVE, Pattern.RIPPLE -> Icons.Rounded.Waves
+    Pattern.COMET, Pattern.FIRE -> Icons.Rounded.Flare
+    Pattern.RAINBOW, Pattern.SPARKLE -> Icons.Rounded.AutoAwesome
+    Pattern.METER, Pattern.SCANNER -> Icons.Rounded.Radar
+    Pattern.HEARTBEAT -> Icons.Rounded.Favorite
+    Pattern.BOUNCE, Pattern.DIVERGE, Pattern.CONVERGE -> Icons.Rounded.Waves
+    Pattern.RADAR, Pattern.GLITCH -> Icons.Rounded.Radar
+    Pattern.CLOCKWISE_FILL -> Icons.Rounded.AutoAwesome
+    Pattern.RANDOM -> Icons.Rounded.Casino
+    else -> Icons.Rounded.AutoAwesome
 }
