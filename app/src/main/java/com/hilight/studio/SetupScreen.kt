@@ -23,7 +23,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -487,6 +490,28 @@ fun SetupScreen(store: Store) {
 
                 2 -> {
                     // TAB 3: Sistema & Manutenzione
+                    val rendererConnected = store.isRendererConnectedForUi(status)
+                    PixelCard(tone = 3) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Stato Demone HiLight", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                                Spacer(Modifier.height(4.dp))
+                                Caption(
+                                    if (rendererConnected) "Connesso tramite ${stringResource(transport.labelRes)}"
+                                    else "Servizio demone non connesso"
+                                )
+                            }
+                            LivePill(
+                                text = if (rendererConnected) "Connesso" else "Offline",
+                                ok = rendererConnected,
+                            )
+                        }
+                    }
+
                     PixelCard(tone = 2) {
                         SectionTitle("Backup e Ripristino")
                         Caption("Esporta le tue regole app e promemoria in un file JSON o ripristina un backup precedente.")

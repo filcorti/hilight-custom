@@ -1,18 +1,24 @@
 package com.hilight.studio
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
@@ -108,51 +114,67 @@ fun LiveScreen(store: Store) {
     // A real model name is not translated; only the fallback profile has a resource to read.
     val modelName = profile.labelRes?.let { stringResource(it) } ?: profile.label
 
-    PixelCard(tone = 0) {
-        // while a test is running the hero shows the test, not the ambient look
-        val shown = previewLook ?: ambient
-        DeviceHero(
-            pattern = if (enabled) shown.pattern else Pattern.OFF,
-            cfg = shown,
-            active = enabled && status.alive,
-            profile = profile,
-        )
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                when {
-                    !profile.hasHiLight -> stringResource(R.string.live_status_unavailable)
-                    previewLook != null -> stringResource(
-                        R.string.live_status_testing,
-                        stringResource(shown.pattern.labelRes),
-                    )
-                    enabled -> stringResource(
-                        R.string.live_status_on,
-                        stringResource(ambient.pattern.labelRes),
-                    )
-                    else -> stringResource(R.string.live_status_system)
-                },
-                style = MaterialTheme.typography.titleMedium,
-                // Weighted so the status line is the thing that wraps. Unweighted, both children
-                // competed for the row and Japanese — where this line runs half again as long as the
-                // English — squeezed the model name into a two-line sliver against the edge.
-                modifier = Modifier.weight(1f, fill = false),
+    val shown = previewLook ?: ambient
+    val activeColor = tileAccent(shown.pattern, shown.color)
+    val heroBg by animateColorAsState(
+        targetValue = if (enabled && status.alive) activeColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLow,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "heroTint",
+    )
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(heroBg)
+            .padding(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // while a test is running the hero shows the test, not the ambient look
+            DeviceHero(
+                pattern = if (enabled) shown.pattern else Pattern.OFF,
+                cfg = shown,
+                active = enabled && status.alive,
+                profile = profile,
             )
-            Spacer(Modifier.width(8.dp))
-            Caption(modelName)
-        }
-        Caption(
-            when {
-                !profile.hasHiLight ->
-                    stringResource(R.string.live_hint_no_array, modelName)
-                !status.alive -> stringResource(R.string.live_hint_no_renderer)
-                enabled -> stringResource(R.string.live_hint_look)
-                else -> stringResource(R.string.live_hint_take_over)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    when {
+                        !profile.hasHiLight -> stringResource(R.string.live_status_unavailable)
+                        previewLook != null -> stringResource(
+                            R.string.live_status_testing,
+                            stringResource(shown.pattern.labelRes),
+                        )
+                        enabled -> stringResource(
+                            R.string.live_status_on,
+                            stringResource(ambient.pattern.labelRes),
+                        )
+                        else -> stringResource(R.string.live_status_system)
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    // Weighted so the status line is the thing that wraps. Unweighted, both children
+                    // competed for the row and Japanese — where this line runs half again as long as the
+                    // English — squeezed the model name into a two-line sliver against the edge.
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(8.dp))
+                Caption(modelName)
             }
-        )
+            Caption(
+                when {
+                    !profile.hasHiLight ->
+                        stringResource(R.string.live_hint_no_array, modelName)
+                    !status.alive -> stringResource(R.string.live_hint_no_renderer)
+                    enabled -> stringResource(R.string.live_hint_look)
+                    else -> stringResource(R.string.live_hint_take_over)
+                }
+            )
+        }
     }
 
     PixelCard(tone = 2) {

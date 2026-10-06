@@ -66,11 +66,11 @@ private val FallbackLight = lightColorScheme(
 
 /** Rounder than stock Material 3 — Pixel's system surfaces sit around 28-32dp. */
 private val PixelShapes = Shapes(
-    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-    small = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-    medium = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    small = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
     large = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(36.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(38.dp),
 )
 
 /** Slightly tighter tracking and heavier headlines, closer to Pixel's system typography. */
