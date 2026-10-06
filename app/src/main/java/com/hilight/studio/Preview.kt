@@ -212,22 +212,26 @@ object Renderer {
 
             Pattern.AURORA -> {
                 val phase = (t % speed) / speed.toDouble()
+                val c1 = base
+                val c2 = mix(c1, 0xFFFFFFFF.toInt(), 0.3)
                 for (i in 0 until n) {
                     val p1 = sin(2 * PI * (phase + i.toDouble() / n))
                     val p2 = sin(2 * PI * (phase * 1.5 - i.toDouble() / (n * 1.5)))
                     val k = (p1 + p2 + 2) / 4.0
-                    val mixedColor = mix(0xFF00E5FF.toInt(), 0xFF7C4DFF.toInt(), k)
+                    val mixedColor = mix(c1, c2, k)
                     out[i] = scale(mixedColor, k.pow(2.5))
                 }
             }
 
             Pattern.FIRE -> {
+                val primary = base
+                val secondary = mix(primary, 0xFFFFFFFF.toInt(), 0.35)
                 for (i in 0 until n) {
                     val wave1 = sin((t * 0.008) + i * 2.3)
                     val wave2 = sin((t * 0.017) - i * 1.7)
                     var intensity = max(0.0, wave1 * 0.5 + wave2 * 0.5 + 0.4)
                     intensity = min(1.0, intensity * intensity)
-                    val fireColor = mix(0xFFFF1000.toInt(), 0xFFFF8C00.toInt(), intensity)
+                    val fireColor = mix(primary, secondary, intensity)
                     out[i] = scale(fireColor, intensity)
                 }
             }

@@ -478,6 +478,7 @@ public final class Engine {
                     );
                     return;
             }
+            android.util.Log.d("HiLightPayload", "Config received: " + (cfg == null ? "null" : cfg.toString()));
             int[] frame = renderer.frame(cfg, t, Math.max(1, lights.ledCount()));
             int[] output = protect(frame, elapsedRealtime);
 

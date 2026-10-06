@@ -43,7 +43,7 @@ public final class Renderer {
         if (cfg == null) return out;
 
         // ambient configs carry "mode", alerts carry "pattern" — accept either
-        String mode = cfg.optString("mode", cfg.optString("pattern", "off"));
+        String mode = cfg.optString("mode", cfg.optString("pattern", "off")).toLowerCase(java.util.Locale.ROOT);
         double bright = clamp01(cfg.optDouble("brightness", 1.0));
         long speed = Math.max(60, cfg.optLong("speedMs", 2000));
         int[] palette = colors(cfg);
@@ -270,23 +270,27 @@ public final class Renderer {
 
             case "aurora": {
                 double phase = (t % speed) / (double) speed;
+                int c1 = palette[0];
+                int c2 = palette.length > 1 ? palette[1] : mix(c1, 0xFFFFFFFF, 0.3);
                 for (int i = 0; i < n; i++) {
                     double p1 = Math.sin(2 * Math.PI * (phase + (double) i / n));
                     double p2 = Math.sin(2 * Math.PI * (phase * 1.5 - (double) i / (n * 1.5)));
                     double k = (p1 + p2 + 2) / 4.0;
-                    int mixedColor = mix(0xFF00E5FF, 0xFF7C4DFF, k);
+                    int mixedColor = mix(c1, c2, k);
                     out[i] = scale(mixedColor, Math.pow(k, 2.5));
                 }
                 break;
             }
 
             case "fire": {
+                int primary = palette[0];
+                int secondary = palette.length > 1 ? palette[1] : mix(primary, 0xFFFFFFFF, 0.35);
                 for (int i = 0; i < n; i++) {
                     double wave1 = Math.sin((t * 0.008) + i * 2.3);
                     double wave2 = Math.sin((t * 0.017) - i * 1.7);
                     double intensity = Math.max(0.0, (wave1 * 0.5 + wave2 * 0.5 + 0.4));
                     intensity = Math.min(1.0, intensity * intensity);
-                    int fireColor = mix(0xFFFF1000, 0xFFFF8C00, intensity);
+                    int fireColor = mix(primary, secondary, intensity);
                     out[i] = scale(fireColor, intensity);
                 }
                 break;
