@@ -658,6 +658,14 @@ public final class Engine {
             case "comet":
             case "wave":
             case "rainbow":
+            case "glitch":
+            case "scanner":
+            case "diverge":
+            case "clockwise_fill":
+            case "aurora":
+            case "fire":
+            case "ripple":
+            case "sparkle":
             case "random":
                 return true;
             case "custom":
