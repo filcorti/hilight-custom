@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -28,6 +28,9 @@ jobs:
 
       - name: Build Release APK
         run: ./gradlew app:assembleRelease
+
+      - name: Verify APK Exists
+        run: ls -la app/build/outputs/apk/release/
 
       - name: Create GitHub Release and Attach APK
         uses: softprops/action-gh-release@v2
