@@ -57,14 +57,9 @@ android {
             signingConfig = signingConfigs.getByName("shared")
         }
         release {
-            optimization {
-                enable = true
-            }
+            isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("shared")
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
         }
     }
 
