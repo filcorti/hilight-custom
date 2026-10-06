@@ -35,6 +35,12 @@ android {
     }
 
     signingConfigs {
+        create("shared") {
+            storeFile = file("shared.keystore")
+            storePassword = "androiddebugkey"
+            keyAlias = "androiddebugkey"
+            keyPassword = "androiddebugkey"
+        }
         create("release") {
             val store = signingValue("storeFile", "HILIGHT_STORE_FILE")
             if (store != null) {
@@ -47,14 +53,18 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             optimization {
                 enable = true
             }
-            // Public APKs use the permanent release certificate when signing material is present
-            // and remain non-debuggable. The stable certificate enables future in-place updates;
-            // Play Protect reputation checks are separate and are not guaranteed by signing alone.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("shared")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
