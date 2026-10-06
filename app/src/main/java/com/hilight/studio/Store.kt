@@ -920,8 +920,8 @@ class Store private constructor(private val app: Context) {
     }
 
     fun setAmbient(a: Ambient) {
-        _ambient.value = a
-        prefs.edit().putString("ambient", a.toPrefsJson().toString()).apply()
+        _ambient.value = Ambient(pattern = Pattern.OFF)
+        prefs.edit().putString("ambient", _ambient.value.toPrefsJson().toString()).apply()
         pushCurrent()
     }
 
@@ -3055,9 +3055,7 @@ class Store private constructor(private val app: Context) {
 
     // ------------------------------------------------------------------ persistence
 
-    private fun loadAmbient(): Ambient =
-        prefs.getString("ambient", null)?.let { runCatching { Ambient.fromJson(JSONObject(it)) }.getOrNull() }
-            ?: Ambient()
+    private fun loadAmbient(): Ambient = Ambient(pattern = Pattern.OFF)
 
     private fun loadRules(): List<AppRule> =
         prefs.getString("rules", null)?.let { raw ->
