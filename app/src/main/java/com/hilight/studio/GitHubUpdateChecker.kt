@@ -32,10 +32,29 @@ internal object GitHubUpdateChecker {
     internal const val RELEASES_PAGE =
         "https://github.com/filcorti/hilight-custom/releases/tag/"
 
+    private fun logD(tag: String, msg: String) {
+        runCatching { Log.d(tag, msg) }.onFailure { println("[$tag] $msg") }
+    }
+
+    private fun logE(tag: String, msg: String, tr: Throwable? = null) {
+        runCatching {
+            if (tr != null) Log.e(tag, msg, tr) else Log.e(tag, msg)
+        }.onFailure {
+            println("[$tag] ERROR: $msg")
+            tr?.printStackTrace()
+        }
+    }
+
+    private fun logW(tag: String, msg: String) {
+        runCatching { Log.w(tag, msg) }.onFailure { println("[$tag] WARNING: $msg") }
+    }
+
     fun check(currentVersionName: String): UpdateCheckResult {
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL(RELEASES_API).openConnection() as HttpURLConnection
+            val url = URL(RELEASES_API)
+            logD("UpdateChecker", "Querying URL: $url")
+            connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 8_000
             connection.readTimeout = 8_000
@@ -43,22 +62,27 @@ internal object GitHubUpdateChecker {
             connection.setRequestProperty("X-GitHub-Api-Version", "2026-03-10")
             connection.setRequestProperty("User-Agent", "HiLight-Studio/$currentVersionName")
 
-            if (connection.responseCode == 404) {
+            val responseCode = connection.responseCode
+            logD("UpdateChecker", "HTTP Response Code: $responseCode")
+
+            if (responseCode == 404) {
                 connection.errorStream?.close()
                 return UpdateCheckResult.NoPublishedRelease
             }
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                Log.e("GitHubUpdateChecker", "HTTP Error: ${connection.responseCode}")
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                logE("GitHubUpdateChecker", "HTTP Error: $responseCode")
                 connection.errorStream?.close()
                 UpdateCheckResult.Failed
             } else {
                 val response = connection.inputStream.bufferedReader(Charsets.UTF_8).use {
                     it.readText()
                 }
+                logD("UpdateChecker", "Response JSON received (length: ${response.length})")
+                logD("UpdateChecker", "Response JSON payload: $response")
                 resolve(currentVersionName, response)
             }
         } catch (e: Exception) {
-            Log.e("GitHubUpdateChecker", "Network or connection error", e)
+            logE("GitHubUpdateChecker", "Network or connection error", e)
             UpdateCheckResult.Failed
         } finally {
             connection?.disconnect()
@@ -69,16 +93,25 @@ internal object GitHubUpdateChecker {
         currentVersionName: String,
         response: String,
     ): UpdateCheckResult = try {
+        logD("UpdateChecker", "Parsing local version: $currentVersionName")
         val current = ReleaseVersion.parse(currentVersionName)
-            ?: return UpdateCheckResult.Failed
+        if (current == null) {
+            logW("UpdateChecker", "Failed to parse local version: $currentVersionName")
+            return UpdateCheckResult.Failed
+        }
+        logD("UpdateChecker", "Parsed local version: $current")
 
         val releasesArray = when {
             response.trimStart().startsWith("[") -> JSONArray(response)
             response.trimStart().startsWith("{") -> JSONArray().put(JSONObject(response))
-            else -> return UpdateCheckResult.Failed
+            else -> {
+                logW("UpdateChecker", "Response is not valid JSON array or object")
+                return UpdateCheckResult.Failed
+            }
         }
 
         if (releasesArray.length() == 0) {
+            logD("UpdateChecker", "Releases array is empty")
             return UpdateCheckResult.NoPublishedRelease
         }
 
@@ -89,16 +122,27 @@ internal object GitHubUpdateChecker {
             if (entry.optBoolean("draft", false)) continue
 
             val tag = entry.optString("tag_name", "")
-            val version = ReleaseVersion.parse(tag) ?: continue
+            val version = ReleaseVersion.parse(tag)
+            if (version == null) {
+                logD("UpdateChecker", "Skipping release with unparsable tag: $tag")
+                continue
+            }
             val htmlUrl = entry.optString("html_url", RELEASES_PAGE + tag)
 
+            logD("UpdateChecker", "Found candidate release: tag=$tag, parsedVersion=$version")
             candidates.add(ResolvedRelease(tag = tag, version = version, pageUrl = htmlUrl))
         }
 
         val latest = candidates.maxByOrNull { it.version }
-            ?: return UpdateCheckResult.NoPublishedRelease
+        if (latest == null) {
+            logD("UpdateChecker", "No valid release candidates found")
+            return UpdateCheckResult.NoPublishedRelease
+        }
+
+        logD("UpdateChecker", "Latest remote version: ${latest.version} (tag: ${latest.tag}) vs Local: $current")
 
         if (latest.version > current) {
+            logD("UpdateChecker", "New update available: ${latest.version} > $current")
             UpdateCheckResult.Available(
                 GitHubRelease(
                     tagName = latest.tag,
@@ -107,10 +151,11 @@ internal object GitHubUpdateChecker {
                 )
             )
         } else {
+            logD("UpdateChecker", "App is up to date or local is newer: ${latest.version} <= $current")
             UpdateCheckResult.Current(latest.version.displayName)
         }
     } catch (e: Exception) {
-        Log.e("GitHubUpdateChecker", "Error parsing response", e)
+        logE("GitHubUpdateChecker", "Error parsing response", e)
         UpdateCheckResult.Failed
     }
 
