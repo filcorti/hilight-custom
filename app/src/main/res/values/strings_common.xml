@@ -50,7 +50,7 @@
     <string name="pattern_custom">Per-LED custom</string>
     <string name="pattern_valeria">Valeria (V)</string>
     <string name="pattern_valeria_short">Valeria</string>
-    <string name="pattern_morse">Morse (Valeria)</string>
+    <string name="pattern_morse">Morse (V)</string>
     <string name="pattern_morse_short">Morse</string>
 
     <!-- What one cycle of each pattern means -->

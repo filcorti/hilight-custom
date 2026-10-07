@@ -71,7 +71,7 @@
     <string name="pattern_custom">LED ごとに設定</string>
     <string name="pattern_valeria">バレリア (V)</string>
     <string name="pattern_valeria_short">バレリア</string>
-    <string name="pattern_morse">モールス (バレリア)</string>
+    <string name="pattern_morse">モールス (V)</string>
     <string name="pattern_morse_short">モールス</string>
 
     <!-- What one cycle of each pattern means -->

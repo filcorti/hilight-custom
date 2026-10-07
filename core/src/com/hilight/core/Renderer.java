@@ -304,48 +304,42 @@ public final class Renderer {
             }
 
             case "morse": {
-                double phase = (t % speed) / (double) speed;
+                double cycleMs = Math.max(1000, speed);
                 java.util.Arrays.fill(out, 0);
 
-                int[] durations = {
-                    1, 1, 1, 1, 1, 1, 3, 3, // V + letter pause
-                    1, 1, 3, 3,             // A + letter pause
-                    1, 1, 3, 1, 1, 1, 1, 3, // L + letter pause
-                    1, 3,                   // E + letter pause
-                    1, 1, 3, 1, 1, 3,       // R + letter pause
-                    1, 1, 1, 3,             // I + letter pause
-                    1, 1, 3, 7              // A + end pause
-                };
-                boolean[] states = {
-                    true, false, true, false, true, false, true, false,
-                    true, false, true, false,
-                    true, false, true, false, true, false, true, false,
-                    true, false,
-                    true, false, true, false, true, false,
-                    true, false, true, false,
-                    true, false, true, false
-                };
-                double totalUnits = 64.0;
-                double currentUnit = phase * totalUnits;
+                double tInCycle = t % cycleMs;
 
-                double accum = 0;
+                double[] startTimes = {0, 300, 600, 900, 1200, 1500, 1800, 2700};
+                double[] durations = {300, 300, 300, 300, 300, 300, 900, 2000};
+                boolean[] states = {true, false, true, false, true, false, true, false};
+
                 boolean isOn = false;
-                double segmentProgress = 0;
+                double segmentElapsed = 0;
+                double segDuration = 300;
 
-                for (int idx = 0; idx < durations.length; idx++) {
+                for (int idx = 0; idx < startTimes.length; idx++) {
+                    double start = startTimes[idx];
                     double dur = durations[idx];
-                    if (currentUnit <= accum + dur) {
+                    if (tInCycle >= start && tInCycle < start + dur) {
                         isOn = states[idx];
-                        segmentProgress = (currentUnit - accum) / dur;
+                        segmentElapsed = tInCycle - start;
+                        segDuration = dur;
                         break;
                     }
-                    accum += dur;
                 }
 
                 int goldColor = 0xFFFFE082;
                 double k = 0.0;
                 if (isOn) {
-                    k = Math.sin(segmentProgress * Math.PI);
+                    double actualRampMs = Math.min(40.0, segDuration / 2.0);
+                    if (segmentElapsed < actualRampMs) {
+                        k = segmentElapsed / actualRampMs;
+                    } else if (segmentElapsed > segDuration - actualRampMs) {
+                        k = (segDuration - segmentElapsed) / actualRampMs;
+                    } else {
+                        k = 1.0;
+                    }
+                    k = Math.max(0.0, Math.min(1.0, k));
                 }
 
                 if (k > 0.005) {

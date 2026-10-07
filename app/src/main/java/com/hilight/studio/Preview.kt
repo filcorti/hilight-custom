@@ -247,48 +247,39 @@ object Renderer {
             }
 
             Pattern.MORSE_VALERIA -> {
-                val phase = (t % speed) / speed.toDouble()
+                val cycleMs = max(1000L, speed)
                 out.fill(0)
 
-                val durations = intArrayOf(
-                    1, 1, 1, 1, 1, 1, 3, 3,
-                    1, 1, 3, 3,
-                    1, 1, 3, 1, 1, 1, 1, 3,
-                    1, 3,
-                    1, 1, 3, 1, 1, 3,
-                    1, 1, 1, 3,
-                    1, 1, 3, 7
-                )
-                val states = booleanArrayOf(
-                    true, false, true, false, true, false, true, false,
-                    true, false, true, false,
-                    true, false, true, false, true, false, true, false,
-                    true, false,
-                    true, false, true, false, true, false,
-                    true, false, true, false,
-                    true, false, true, false
-                )
-                val totalUnits = 64.0
-                val currentUnit = phase * totalUnits
+                val tInCycle = (t % cycleMs).toDouble()
 
-                var accum = 0.0
+                val startTimes = doubleArrayOf(0.0, 300.0, 600.0, 900.0, 1200.0, 1500.0, 1800.0, 2700.0)
+                val durations = doubleArrayOf(300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 900.0, 2000.0)
+                val states = booleanArrayOf(true, false, true, false, true, false, true, false)
+
                 var isOn = false
-                var segmentProgress = 0.0
+                var segmentElapsed = 0.0
+                var segDuration = 300.0
 
-                for (idx in durations.indices) {
-                    val dur = durations[idx].toDouble()
-                    if (currentUnit <= accum + dur) {
+                for (idx in startTimes.indices) {
+                    val start = startTimes[idx]
+                    val dur = durations[idx]
+                    if (tInCycle >= start && tInCycle < start + dur) {
                         isOn = states[idx]
-                        segmentProgress = (currentUnit - accum) / dur
+                        segmentElapsed = tInCycle - start
+                        segDuration = dur
                         break
                     }
-                    accum += dur
                 }
 
                 val goldColor = 0xFFFFE082.toInt()
                 var k = 0.0
                 if (isOn) {
-                    k = sin(segmentProgress * PI)
+                    val actualRampMs = min(40.0, segDuration / 2.0)
+                    k = when {
+                        segmentElapsed < actualRampMs -> segmentElapsed / actualRampMs
+                        segmentElapsed > segDuration - actualRampMs -> (segDuration - segmentElapsed) / actualRampMs
+                        else -> 1.0
+                    }.coerceIn(0.0, 1.0)
                 }
 
                 if (k > 0.005) {
