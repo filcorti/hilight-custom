@@ -89,17 +89,51 @@ private fun SafetyState(status: HelperStatus) {
     }
 }
 
+private fun patternAccentInt(pattern: Pattern): Int = when (pattern) {
+    Pattern.SOLID -> CalibratedLedColors.CYAN
+    Pattern.GRADIENT -> CalibratedLedColors.PURPLE
+    Pattern.BREATHE -> CalibratedLedColors.SAPPHIRE_BLUE
+    Pattern.BLINK -> CalibratedLedColors.RED
+    Pattern.PULSE -> CalibratedLedColors.ORANGE
+    Pattern.CHASE -> CalibratedLedColors.EMERALD_GREEN
+    Pattern.COMET -> CalibratedLedColors.FUCHSIA
+    Pattern.WAVE -> CalibratedLedColors.CYAN
+    Pattern.RAINBOW -> 0xFF7C4DFF.toInt()
+    Pattern.METER -> CalibratedLedColors.AMBER_YELLOW
+    Pattern.STROBE -> CalibratedLedColors.PINK
+    Pattern.HEARTBEAT -> CalibratedLedColors.RED
+    Pattern.BOUNCE -> 0xFF00E5FF.toInt()
+    Pattern.RADAR -> CalibratedLedColors.EMERALD_GREEN
+    Pattern.CONVERGE -> CalibratedLedColors.PURPLE
+    Pattern.GLITCH -> 0xFF00E676.toInt()
+    Pattern.SCANNER -> CalibratedLedColors.AMBER_YELLOW
+    Pattern.DIVERGE -> 0xFF2979FF.toInt()
+    Pattern.CLOCKWISE_FILL -> 0xFFFFD600.toInt()
+    Pattern.AURORA -> 0xFF00E676.toInt()
+    Pattern.FIRE -> CalibratedLedColors.ORANGE
+    Pattern.RIPPLE -> 0xFF00E5FF.toInt()
+    Pattern.SPARKLE -> 0xFFFF80AB.toInt()
+    Pattern.RANDOM -> 0xFFFF6D00.toInt()
+    Pattern.CUSTOM -> CalibratedLedColors.PURPLE
+    else -> CalibratedLedColors.CYAN
+}
+
+private fun patternAccent(pattern: Pattern): Color = Color(patternAccentInt(pattern))
+
+private fun patternLook(pattern: Pattern): Ambient = when (pattern) {
+    Pattern.GRADIENT -> Ambient(pattern = pattern, color = CalibratedLedColors.PURPLE, secondColor = CalibratedLedColors.CYAN, speedMs = 1200, brightness = 1f)
+    Pattern.RAINBOW -> Ambient(pattern = pattern, color = 0xFF7C4DFF.toInt(), rainbowSpread = true, speedMs = 1200, brightness = 1f)
+    Pattern.RANDOM -> Ambient(pattern = pattern, color = CalibratedLedColors.ORANGE, randomSaturation = 1f, speedMs = 1200, brightness = 1f)
+    else -> Ambient(pattern = pattern, color = patternAccentInt(pattern), speedMs = 1200, brightness = 1f)
+}
+
 /**
- * White-light effects have no colour of their own, so give their tiles a readable accent.
- *
- * Keyed on the pattern rather than on the tile's label, which is translated now: comparing a label
- * against the English word "Rainbow" would have picked the wrong accent in every other language.
+ * Characteristic vibrant accent color for each effect tile.
  */
 @Composable
 private fun tileAccent(pattern: Pattern, color: Int): Color = when {
-    color != 0xFFFFFFFF.toInt() -> Color(color)
-    pattern == Pattern.RAINBOW -> Color(0xFF7C4DFF)
-    else -> Color(0xFFFFB300)
+    color != 0xFFFFFFFF.toInt() && color != 0 -> Color(color)
+    else -> patternAccent(pattern)
 }
 
 /** Home surface: the phone itself, the master switch, and one-tap effects. */
@@ -229,7 +263,7 @@ fun LiveScreen(store: Store) {
             items(allPatterns, key = { it.key }) { pattern ->
                 val label = stringResource(pattern.shortLabelRes)
                 val icon = patternIcon(pattern)
-                val accent = tileAccent(pattern, 0xFFFFFFFF.toInt())
+                val accent = patternAccent(pattern)
                 PixelTile(
                     label = label,
                     icon = icon,
@@ -237,7 +271,14 @@ fun LiveScreen(store: Store) {
                     enabled = enabled && status.alive,
                     modifier = Modifier.width(108.dp),
                 ) {
-                    launchPreview(pattern, 0xFFFFFFFF.toInt(), 1200, 1f, 4_000)
+                    launchPreview(
+                        pattern = pattern,
+                        color = patternAccentInt(pattern),
+                        speedMs = 1200,
+                        brightness = 1f,
+                        durationMs = 4_000,
+                        look = patternLook(pattern),
+                    )
                 }
             }
         }
