@@ -249,6 +249,44 @@ public final class Renderer {
                 break;
             }
 
+            case "valeria": {
+                double phase = (t % speed) / (double) speed;
+                double centerDist = (n - 1) / 2.0;
+                double p1, p2;
+                double intensity;
+                if (phase < 0.65) {
+                    double progress = phase / 0.65;
+                    p1 = progress * centerDist;
+                    p2 = (n - 1) - progress * centerDist;
+                    intensity = 1.0;
+                } else if (phase < 0.85) {
+                    p1 = centerDist;
+                    p2 = centerDist;
+                    double burstPhase = (phase - 0.65) / 0.2;
+                    intensity = 1.0 + (1.0 - Math.abs(burstPhase - 0.5) * 2.0) * 0.8;
+                } else {
+                    p1 = centerDist;
+                    p2 = centerDist;
+                    double decay = (1.0 - phase) / 0.15;
+                    intensity = decay;
+                }
+
+                int primaryColor = 0xFFFF85A1;
+                int goldColor = 0xFFFFE5B4;
+
+                for (int i = 0; i < n; i++) {
+                    double d1 = Math.abs(p1 - i);
+                    double d2 = Math.abs(p2 - i);
+                    double trail = Math.max(Math.max(0.0, 1.0 - d1 / 1.5), Math.max(0.0, 1.0 - d2 / 1.5));
+                    double centerGlow = Math.max(0.0, 1.0 - Math.abs(centerDist - i) / 1.2) * (phase >= 0.65 ? intensity : 0.0);
+
+                    double k = Math.min(1.0, trail * 0.7 + centerGlow * 0.9);
+                    int rgb = (phase >= 0.65 && phase < 0.85 && Math.abs(centerDist - i) < 1.0) ? goldColor : primaryColor;
+                    out[i] = scale(rgb, k * intensity);
+                }
+                break;
+            }
+
             case "clockwise_fill": {
                 double phase = (t % speed) / (double) speed;
                 if (phase < 0.75) {

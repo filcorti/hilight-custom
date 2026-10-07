@@ -58,6 +58,10 @@ enum class Pattern(
     RIPPLE("ripple", R.string.pattern_ripple, cycleMeaningRes = R.string.cycle_ripple),
     SPARKLE("sparkle", R.string.pattern_sparkle, cycleMeaningRes = R.string.cycle_sparkle),
     RANDOM("random", R.string.pattern_random, usesSpeed = false),
+    VALERIA(
+        "valeria", R.string.pattern_valeria, cycleMeaningRes = R.string.cycle_valeria,
+        narrowLabelRes = R.string.pattern_valeria_short,
+    ),
     CUSTOM("custom", R.string.pattern_custom, usesSpeed = false);
 
     /** The name to show where a third of a row is all there is. */

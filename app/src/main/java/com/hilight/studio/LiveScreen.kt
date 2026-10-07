@@ -114,6 +114,7 @@ private fun patternAccentInt(pattern: Pattern): Int = when (pattern) {
     Pattern.RIPPLE -> 0xFF00E5FF.toInt()
     Pattern.SPARKLE -> 0xFFFF80AB.toInt()
     Pattern.RANDOM -> 0xFFFF6D00.toInt()
+    Pattern.VALERIA -> 0xFFFF85A1.toInt()
     Pattern.CUSTOM -> CalibratedLedColors.PURPLE
     else -> CalibratedLedColors.CYAN
 }
@@ -334,7 +335,7 @@ private fun patternIcon(pattern: Pattern): ImageVector = when (pattern) {
     Pattern.RAINBOW, Pattern.SPARKLE -> Icons.Rounded.AutoAwesome
     Pattern.METER, Pattern.SCANNER -> Icons.Rounded.Radar
     Pattern.HEARTBEAT -> Icons.Rounded.Favorite
-    Pattern.BOUNCE, Pattern.DIVERGE, Pattern.CONVERGE -> Icons.Rounded.Waves
+    Pattern.BOUNCE, Pattern.DIVERGE, Pattern.CONVERGE, Pattern.VALERIA -> Icons.Rounded.Favorite
     Pattern.RADAR, Pattern.GLITCH -> Icons.Rounded.Radar
     Pattern.CLOCKWISE_FILL -> Icons.Rounded.AutoAwesome
     Pattern.RANDOM -> Icons.Rounded.Casino

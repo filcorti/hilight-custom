@@ -69,6 +69,8 @@
     <string name="pattern_random">ランダムな色</string>
     <!-- "Per-LED custom" -->
     <string name="pattern_custom">LED ごとに設定</string>
+    <string name="pattern_valeria">バレリア (V)</string>
+    <string name="pattern_valeria_short">バレリア</string>
 
     <!-- What one cycle of each pattern means -->
     <!-- "One full breath: dim up to full, back down." -->
@@ -105,6 +107,7 @@
     <string name="cycle_aurora">2色の光がゆらめく幻想的なオーロラ効果です。</string>
     <string name="cycle_ripple">中央の衝撃から波紋が外側に広がります。</string>
     <string name="cycle_sparkle">暗い背景にランダムで明るいフラッシュが瞬きます。</string>
+    <string name="cycle_valeria">両端から光が集まって中心で衝突し、黄金のパルスを放ちます。</string>
 
     <!-- Why the array is being held dark -->
     <!-- "Quiet hours" -->

@@ -192,6 +192,43 @@ object Renderer {
                 }
             }
 
+            Pattern.VALERIA -> {
+                val phase = (t % speed) / speed.toDouble()
+                val centerDist = (n - 1) / 2.0
+                val p1: Double
+                val p2: Double
+                val intensity: Double
+                if (phase < 0.65) {
+                    val progress = phase / 0.65
+                    p1 = progress * centerDist
+                    p2 = (n - 1) - progress * centerDist
+                    intensity = 1.0
+                } else if (phase < 0.85) {
+                    p1 = centerDist
+                    p2 = centerDist
+                    val burstPhase = (phase - 0.65) / 0.2
+                    intensity = 1.0 + (1.0 - abs(burstPhase - 0.5) * 2.0) * 0.8
+                } else {
+                    p1 = centerDist
+                    p2 = centerDist
+                    intensity = (1.0 - phase) / 0.15
+                }
+
+                val primaryColor = if (base != 0xFFFFFFFF.toInt()) base else 0xFFFF85A1.toInt()
+                val goldColor = 0xFFFFE5B4.toInt()
+
+                for (i in 0 until n) {
+                    val d1 = abs(p1 - i)
+                    val d2 = abs(p2 - i)
+                    val trail = max(max(0.0, 1.0 - d1 / 1.5), max(0.0, 1.0 - d2 / 1.5))
+                    val centerGlow = max(0.0, 1.0 - abs(centerDist - i) / 1.2) * if (phase >= 0.65) intensity else 0.0
+
+                    val k = min(1.0, trail * 0.7 + centerGlow * 0.9)
+                    val rgb = if (phase >= 0.65 && phase < 0.85 && abs(centerDist - i) < 1.0) goldColor else primaryColor
+                    out[i] = scale(rgb, k * intensity)
+                }
+            }
+
             Pattern.CLOCKWISE_FILL -> {
                 val phase = (t % speed) / speed.toDouble()
                 if (phase < 0.75) {

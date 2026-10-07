@@ -48,6 +48,8 @@
     <string name="pattern_sparkle">Sparkle</string>
     <string name="pattern_random">Random colours</string>
     <string name="pattern_custom">Per-LED custom</string>
+    <string name="pattern_valeria">Valeria (V)</string>
+    <string name="pattern_valeria_short">Valeria</string>
 
     <!-- What one cycle of each pattern means -->
     <string name="cycle_breathe">One full breath: dim up to full, back down.</string>
@@ -70,6 +72,7 @@
     <string name="cycle_aurora">One ethereal shift of dual-tone wavy lights.</string>
     <string name="cycle_ripple">One central impact with ripples propagating outwards.</string>
     <string name="cycle_sparkle">One background glimmer punctuated by a random bright flash.</string>
+    <string name="cycle_valeria">Two symmetric beams travel inwards, colliding at the center with a golden pulse.</string>
 
     <!-- Why the array is being held dark -->
     <string name="suppression_quiet_hours">Quiet hours</string>
