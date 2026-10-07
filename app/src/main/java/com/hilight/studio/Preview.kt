@@ -194,38 +194,55 @@ object Renderer {
 
             Pattern.VALERIA -> {
                 val phase = (t % speed) / speed.toDouble()
-                val centerDist = (n - 1) / 2.0
-                val p1: Double
-                val p2: Double
-                val intensity: Double
-                if (phase < 0.65) {
-                    val progress = phase / 0.65
-                    p1 = progress * centerDist
-                    p2 = (n - 1) - progress * centerDist
-                    intensity = 1.0
-                } else if (phase < 0.85) {
-                    p1 = centerDist
-                    p2 = centerDist
-                    val burstPhase = (phase - 0.65) / 0.2
-                    intensity = 1.0 + (1.0 - abs(burstPhase - 0.5) * 2.0) * 0.8
+                out.fill(0)
+
+                val pos1: Double
+                val pos2: Double
+                var globalAlpha = 1.0
+                var isFlash = false
+                var flashIntensity = 0.0
+
+                if (phase < 0.60) {
+                    val progress = phase / 0.60
+                    pos1 = progress * 0.5
+                    pos2 = 1.0 - (progress * 0.5)
+                } else if (phase < 0.75) {
+                    pos1 = 0.5
+                    pos2 = 0.5
+                    isFlash = true
+                    val flashPhase = (phase - 0.60) / 0.15
+                    flashIntensity = sin(flashPhase * PI)
                 } else {
-                    p1 = centerDist
-                    p2 = centerDist
-                    intensity = (1.0 - phase) / 0.15
+                    pos1 = 0.5
+                    pos2 = 0.5
+                    val decayPhase = (phase - 0.75) / 0.25
+                    globalAlpha = max(0.0, 1.0 - decayPhase)
                 }
 
                 val primaryColor = if (base != 0xFFFFFFFF.toInt()) base else 0xFFFF85A1.toInt()
                 val goldColor = 0xFFFFE5B4.toInt()
+                val sigma = 0.06
 
                 for (i in 0 until n) {
-                    val d1 = abs(p1 - i)
-                    val d2 = abs(p2 - i)
-                    val trail = max(max(0.0, 1.0 - d1 / 1.5), max(0.0, 1.0 - d2 / 1.5))
-                    val centerGlow = max(0.0, 1.0 - abs(centerDist - i) / 1.2) * if (phase >= 0.65) intensity else 0.0
+                    val ledPos = if (n > 1) i.toDouble() / (n - 1) else 0.5
+                    val d1 = abs(ledPos - pos1)
+                    val d2 = abs(ledPos - pos2)
 
-                    val k = min(1.0, trail * 0.7 + centerGlow * 0.9)
-                    val rgb = if (phase >= 0.65 && phase < 0.85 && abs(centerDist - i) < 1.0) goldColor else primaryColor
-                    out[i] = scale(rgb, k * intensity)
+                    val k1 = exp(-(d1 * d1) / (2 * sigma * sigma))
+                    val k2 = exp(-(d2 * d2) / (2 * sigma * sigma))
+                    var k = min(1.0, k1 + k2)
+
+                    if (d1 > 0.2 && d2 > 0.2 && !isFlash) {
+                        k = 0.0
+                    }
+
+                    out[i] = if (isFlash) {
+                        val centerDist = abs(ledPos - 0.5)
+                        val flashK = exp(-(centerDist * centerDist) / (2 * (sigma * 1.5) * (sigma * 1.5))) * flashIntensity
+                        if (flashK > 0.01) scale(goldColor, flashK * globalAlpha) else 0
+                    } else {
+                        if (k > 0.005) scale(primaryColor, k * globalAlpha) else 0
+                    }
                 }
             }
 
