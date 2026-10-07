@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -172,6 +173,7 @@ private fun App(store: Store, startInSetup: Boolean = false) {
             Box(
                 Modifier
                     .fillMaxWidth()
+                    .background(Color.Transparent)
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 16.dp),
                 contentAlignment = Alignment.Center,
@@ -184,6 +186,7 @@ private fun App(store: Store, startInSetup: Boolean = false) {
                 ) {
                     NavigationBar(
                         containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         tonalElevation = 0.dp,
                         modifier = Modifier.height(64.dp),
                     ) {
