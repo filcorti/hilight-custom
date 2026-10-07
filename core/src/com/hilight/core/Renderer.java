@@ -16,6 +16,10 @@ import java.util.Random;
  */
 public final class Renderer {
 
+    private static final double[] MORSE_START_TIMES = {0.0, 300.0, 600.0, 900.0, 1200.0, 1500.0, 1800.0, 2700.0};
+    private static final double[] MORSE_DURATIONS = {300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 900.0, 2000.0};
+    private static final boolean[] MORSE_STATES = {true, false, true, false, true, false, true, false};
+
     private final Random rnd;
 
     // random-mode fade state
@@ -309,19 +313,15 @@ public final class Renderer {
 
                 double tInCycle = t % cycleMs;
 
-                double[] startTimes = {0, 300, 600, 900, 1200, 1500, 1800, 2700};
-                double[] durations = {300, 300, 300, 300, 300, 300, 900, 2000};
-                boolean[] states = {true, false, true, false, true, false, true, false};
-
                 boolean isOn = false;
                 double segmentElapsed = 0;
                 double segDuration = 300;
 
-                for (int idx = 0; idx < startTimes.length; idx++) {
-                    double start = startTimes[idx];
-                    double dur = durations[idx];
+                for (int idx = 0; idx < MORSE_START_TIMES.length; idx++) {
+                    double start = MORSE_START_TIMES[idx];
+                    double dur = MORSE_DURATIONS[idx];
                     if (tInCycle >= start && tInCycle < start + dur) {
-                        isOn = states[idx];
+                        isOn = MORSE_STATES[idx];
                         segmentElapsed = tInCycle - start;
                         segDuration = dur;
                         break;

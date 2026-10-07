@@ -17,6 +17,10 @@ import kotlin.math.sin
  */
 object Renderer {
 
+    private val MORSE_START_TIMES = doubleArrayOf(0.0, 300.0, 600.0, 900.0, 1200.0, 1500.0, 1800.0, 2700.0)
+    private val MORSE_DURATIONS = doubleArrayOf(300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 900.0, 2000.0)
+    private val MORSE_STATES = booleanArrayOf(true, false, true, false, true, false, true, false)
+
     fun frame(pattern: Pattern, tMs: Long, cfg: Ambient, colorOverride: Int? = null): IntArray {
         val n = LED_COUNT
         val out = IntArray(n)
@@ -252,19 +256,15 @@ object Renderer {
 
                 val tInCycle = (t % cycleMs).toDouble()
 
-                val startTimes = doubleArrayOf(0.0, 300.0, 600.0, 900.0, 1200.0, 1500.0, 1800.0, 2700.0)
-                val durations = doubleArrayOf(300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 900.0, 2000.0)
-                val states = booleanArrayOf(true, false, true, false, true, false, true, false)
-
                 var isOn = false
                 var segmentElapsed = 0.0
                 var segDuration = 300.0
 
-                for (idx in startTimes.indices) {
-                    val start = startTimes[idx]
-                    val dur = durations[idx]
+                for (idx in MORSE_START_TIMES.indices) {
+                    val start = MORSE_START_TIMES[idx]
+                    val dur = MORSE_DURATIONS[idx]
                     if (tInCycle >= start && tInCycle < start + dur) {
-                        isOn = states[idx]
+                        isOn = MORSE_STATES[idx]
                         segmentElapsed = tInCycle - start
                         segDuration = dur
                         break
