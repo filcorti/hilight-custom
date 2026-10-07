@@ -303,6 +303,60 @@ public final class Renderer {
                 break;
             }
 
+            case "morse": {
+                double phase = (t % speed) / (double) speed;
+                java.util.Arrays.fill(out, 0);
+
+                int[] durations = {
+                    1, 1, 1, 1, 1, 1, 3, 3, // V + letter pause
+                    1, 1, 3, 3,             // A + letter pause
+                    1, 1, 3, 1, 1, 1, 1, 3, // L + letter pause
+                    1, 3,                   // E + letter pause
+                    1, 1, 3, 1, 1, 3,       // R + letter pause
+                    1, 1, 1, 3,             // I + letter pause
+                    1, 1, 3, 7              // A + end pause
+                };
+                boolean[] states = {
+                    true, false, true, false, true, false, true, false,
+                    true, false, true, false,
+                    true, false, true, false, true, false, true, false,
+                    true, false,
+                    true, false, true, false, true, false,
+                    true, false, true, false,
+                    true, false, true, false
+                };
+                double totalUnits = 64.0;
+                double currentUnit = phase * totalUnits;
+
+                double accum = 0;
+                boolean isOn = false;
+                double segmentProgress = 0;
+
+                for (int idx = 0; idx < durations.length; idx++) {
+                    double dur = durations[idx];
+                    if (currentUnit <= accum + dur) {
+                        isOn = states[idx];
+                        segmentProgress = (currentUnit - accum) / dur;
+                        break;
+                    }
+                    accum += dur;
+                }
+
+                int goldColor = 0xFFFFE082;
+                double k = 0.0;
+                if (isOn) {
+                    k = Math.sin(segmentProgress * Math.PI);
+                }
+
+                if (k > 0.005) {
+                    int c = scale(goldColor, k);
+                    for (int i = 0; i < n; i++) {
+                        out[i] = c;
+                    }
+                }
+                break;
+            }
+
             case "clockwise_fill": {
                 double phase = (t % speed) / (double) speed;
                 if (phase < 0.75) {

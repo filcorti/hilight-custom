@@ -71,6 +71,8 @@
     <string name="pattern_custom">LED ごとに設定</string>
     <string name="pattern_valeria">バレリア (V)</string>
     <string name="pattern_valeria_short">バレリア</string>
+    <string name="pattern_morse">モールス (バレリア)</string>
+    <string name="pattern_morse_short">モールス</string>
 
     <!-- What one cycle of each pattern means -->
     <!-- "One full breath: dim up to full, back down." -->
@@ -108,6 +110,7 @@
     <string name="cycle_ripple">中央の衝撃から波紋が外側に広がります。</string>
     <string name="cycle_sparkle">暗い背景にランダムで明るいフラッシュが瞬きます。</string>
     <string name="cycle_valeria">両端から光が集まって中心で衝突し、黄金のパルスを放ちます。</string>
+    <string name="cycle_morse">「バレリア」の名前のモールス信号送信です。</string>
 
     <!-- Why the array is being held dark -->
     <!-- "Quiet hours" -->

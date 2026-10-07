@@ -246,6 +246,59 @@ object Renderer {
                 }
             }
 
+            Pattern.MORSE_VALERIA -> {
+                val phase = (t % speed) / speed.toDouble()
+                out.fill(0)
+
+                val durations = intArrayOf(
+                    1, 1, 1, 1, 1, 1, 3, 3,
+                    1, 1, 3, 3,
+                    1, 1, 3, 1, 1, 1, 1, 3,
+                    1, 3,
+                    1, 1, 3, 1, 1, 3,
+                    1, 1, 1, 3,
+                    1, 1, 3, 7
+                )
+                val states = booleanArrayOf(
+                    true, false, true, false, true, false, true, false,
+                    true, false, true, false,
+                    true, false, true, false, true, false, true, false,
+                    true, false,
+                    true, false, true, false, true, false,
+                    true, false, true, false,
+                    true, false, true, false
+                )
+                val totalUnits = 64.0
+                val currentUnit = phase * totalUnits
+
+                var accum = 0.0
+                var isOn = false
+                var segmentProgress = 0.0
+
+                for (idx in durations.indices) {
+                    val dur = durations[idx].toDouble()
+                    if (currentUnit <= accum + dur) {
+                        isOn = states[idx]
+                        segmentProgress = (currentUnit - accum) / dur
+                        break
+                    }
+                    accum += dur
+                }
+
+                val goldColor = 0xFFFFE082.toInt()
+                var k = 0.0
+                if (isOn) {
+                    k = sin(segmentProgress * PI)
+                }
+
+                if (k > 0.005) {
+                    val c = scale(goldColor, k)
+                    for (i in 0 until n) {
+                        out[i] = c
+                    }
+                }
+            }
+
             Pattern.CLOCKWISE_FILL -> {
                 val phase = (t % speed) / speed.toDouble()
                 if (phase < 0.75) {

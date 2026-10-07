@@ -62,6 +62,10 @@ enum class Pattern(
         "valeria", R.string.pattern_valeria, cycleMeaningRes = R.string.cycle_valeria,
         narrowLabelRes = R.string.pattern_valeria_short,
     ),
+    MORSE_VALERIA(
+        "morse", R.string.pattern_morse, cycleMeaningRes = R.string.cycle_morse,
+        narrowLabelRes = R.string.pattern_morse_short,
+    ),
     CUSTOM("custom", R.string.pattern_custom, usesSpeed = false);
 
     /** The name to show where a third of a row is all there is. */
