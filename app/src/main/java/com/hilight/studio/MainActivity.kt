@@ -13,9 +13,12 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -23,6 +26,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.DisplaySettings
@@ -161,18 +169,37 @@ private fun App(store: Store, startInSetup: Boolean = false) {
             )
         },
         bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { t ->
-                    NavigationBarItem(
-                        selected = tab == t,
-                        onClick = {
-                            if (tab != t) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            tabIndex = t.ordinal
-                        },
-                        icon = { Icon(t.icon, contentDescription = stringResource(t.labelRes)) },
-                        label = { Text(stringResource(t.labelRes)) },
-                        alwaysShowLabel = true,
-                    )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .shadow(6.dp, RoundedCornerShape(32.dp))
+                        .clip(RoundedCornerShape(32.dp)),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        modifier = Modifier.height(64.dp),
+                    ) {
+                        Tab.entries.forEach { t ->
+                            NavigationBarItem(
+                                selected = tab == t,
+                                onClick = {
+                                    if (tab != t) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    tabIndex = t.ordinal
+                                },
+                                icon = { Icon(t.icon, contentDescription = stringResource(t.labelRes)) },
+                                label = { Text(stringResource(t.labelRes)) },
+                                alwaysShowLabel = true,
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -194,7 +221,8 @@ private fun App(store: Store, startInSetup: Boolean = false) {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 100.dp),
             ) {
                 when (current) {
                     Tab.LIVE -> LiveScreen(store)
