@@ -38,9 +38,11 @@ import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.DisplaySettings
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -171,22 +173,29 @@ private fun App(store: Store, startInSetup: Boolean = false) {
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                tonalElevation = 0.dp,
-            ) {
-                Tab.entries.forEach { t ->
-                    NavigationBarItem(
-                        selected = tab == t,
-                        onClick = {
-                            if (tab != t) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            tabIndex = t.ordinal
-                        },
-                        icon = { Icon(t.icon, contentDescription = stringResource(t.labelRes)) },
-                        label = { Text(stringResource(t.labelRes)) },
-                        alwaysShowLabel = true,
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                )
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tonalElevation = 0.dp,
+                    windowInsets = NavigationBarDefaults.windowInsets
+                ) {
+                    Tab.entries.forEach { t ->
+                        NavigationBarItem(
+                            selected = tab == t,
+                            onClick = {
+                                if (tab != t) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                tabIndex = t.ordinal
+                            },
+                            icon = { Icon(t.icon, contentDescription = stringResource(t.labelRes)) },
+                            label = { Text(stringResource(t.labelRes)) },
+                            alwaysShowLabel = true,
+                        )
+                    }
                 }
             }
         },
@@ -208,7 +217,8 @@ private fun App(store: Store, startInSetup: Boolean = false) {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 16.dp),
             ) {
                 when (current) {
                     Tab.LIVE -> LiveScreen(store)
