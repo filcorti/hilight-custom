@@ -25,7 +25,8 @@ object Renderer {
         val n = LED_COUNT
         val out = IntArray(n)
         val base = colorOverride ?: cfg.color
-        val speed = max(60, cfg.speedMs).toLong()
+        val mult = max(0.01f, cfg.speedMultiplier)
+        val speed = max(60L, (cfg.speedMs / mult).toLong())
         val t = tMs
 
         when (pattern) {
@@ -365,7 +366,7 @@ object Renderer {
             }
         }
 
-        val b = cfg.brightness.toDouble()
+        val b = (cfg.brightness * cfg.maxBrightness).toDouble().coerceIn(0.0, 1.0)
         if (b < 1.0) for (i in 0 until n) out[i] = scale(out[i], b)
         return out
     }

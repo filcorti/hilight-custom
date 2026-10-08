@@ -48,8 +48,8 @@ public final class Renderer {
 
         // ambient configs carry "mode", alerts carry "pattern" — accept either
         String mode = cfg.optString("mode", cfg.optString("pattern", "off")).toLowerCase(java.util.Locale.ROOT);
-        double bright = clamp01(cfg.optDouble("brightness", 1.0));
-        long speed = Math.max(60, cfg.optLong("speedMs", 2000));
+        double bright = clamp01(cfg.optDouble("brightness", 1.0) * cfg.optDouble("maxBrightness", 1.0));
+        long speed = Math.max(60, (long) (Math.max(60, cfg.optLong("speedMs", 2000)) / Math.max(0.01, cfg.optDouble("speedMultiplier", 1.0))));
         int[] palette = colors(cfg);
 
         switch (mode) {

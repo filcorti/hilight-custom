@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.hilight.core.RendererContract
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.max
 
 /**
  * Patterns the renderer understands.
@@ -103,6 +104,8 @@ data class Ambient(
     val perLed: List<Int> = DEFAULT_PER_LED,
     val brightness: Float = 0.7f,
     val speedMs: Int = 2500,
+    val speedMultiplier: Float = 1.0f,
+    val maxBrightness: Float = 1.0f,
     val rainbowSpread: Boolean = true,
     val randomIntervalMs: Int = 1500,
     val randomPerLed: Boolean = true,
@@ -112,8 +115,8 @@ data class Ambient(
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("mode", pattern.key)
-        put("brightness", brightness.toDouble())
-        put("speedMs", speedMs)
+        put("brightness", (brightness * maxBrightness).toDouble().coerceIn(0.0, 1.0))
+        put("speedMs", max(60L, (speedMs / max(0.01f, speedMultiplier)).toLong()))
         put("spread", rainbowSpread)
         put("randomIntervalMs", randomIntervalMs)
         put("randomPerLed", randomPerLed)
@@ -142,6 +145,8 @@ data class Ambient(
             }?.takeIf { it.size == LED_COUNT } ?: DEFAULT_PER_LED,
             brightness = o.optDouble("brightness", 0.7).toFloat(),
             speedMs = o.optInt("speedMs", 2500),
+            speedMultiplier = o.optDouble("speedMultiplier", 1.0).toFloat(),
+            maxBrightness = o.optDouble("maxBrightness", 1.0).toFloat(),
             rainbowSpread = o.optBoolean("rainbowSpread", true),
             randomIntervalMs = o.optInt("randomIntervalMs", 1500),
             randomPerLed = o.optBoolean("randomPerLed", true),
@@ -159,6 +164,8 @@ data class Ambient(
         put("perLed", JSONArray().also { a -> perLed.forEach { a.put(it.toUInt().toLong()) } })
         put("brightness", brightness.toDouble())
         put("speedMs", speedMs)
+        put("speedMultiplier", speedMultiplier.toDouble())
+        put("maxBrightness", maxBrightness.toDouble())
         put("rainbowSpread", rainbowSpread)
         put("randomIntervalMs", randomIntervalMs)
         put("randomPerLed", randomPerLed)

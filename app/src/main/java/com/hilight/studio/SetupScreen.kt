@@ -218,6 +218,8 @@ fun SetupScreen(store: Store) {
     val faceDownOnly by store.faceDownOnly.collectAsStateWithLifecycle()
     val faceDownNoticeAccepted by store.faceDownNoticeAccepted.collectAsStateWithLifecycle()
     val faceDownState by store.faceDownState.collectAsStateWithLifecycle()
+    val breatheReminderEnabled by store.breatheReminderEnabled.collectAsStateWithLifecycle()
+    val breatheReminderIntervalSec by store.breatheReminderIntervalSec.collectAsStateWithLifecycle()
     val faceDownSensorAvailable = remember(ctx) { ForegroundWatcher.hasFaceDownSensor(ctx) }
     val glowSuppression = suppression?.takeIf {
         it.settingsSection() == SettingsSuppressionSection.GLOW
@@ -381,6 +383,22 @@ fun SetupScreen(store: Store) {
                                     stringResource(R.string.setup_warn_long_confirm_body),
                             onChange = { store.setAmbientTimeoutMs(it) },
                         )
+                    }
+
+                    PixelCard {
+                        SectionTitle("Promemoria Notifiche a Schermo Spento")
+                        Caption("Emette un delicato impulso di respiro a basso consumo a intervalli regolari finché la notifica non viene letta.")
+                        ToggleRow("Breathe Reminder", breatheReminderEnabled) {
+                            store.setBreatheReminderEnabled(it)
+                        }
+                        if (breatheReminderEnabled) {
+                            SegmentedSelector(
+                                options = listOf(15, 30, 60),
+                                selected = breatheReminderIntervalSec,
+                                label = { "${it}s" },
+                                onSelect = { store.setBreatheReminderIntervalSec(it) },
+                            )
+                        }
                     }
 
                     PixelCard {

@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -41,19 +42,32 @@ class NotificationTrigger : NotificationListenerService() {
     private var connected = false
     private var observationScope: CoroutineScope? = null
     private var signalOwner: String? = null
+    private var breatheJob: kotlinx.coroutines.Job? = null
+    private val activeNotifKeys = mutableSetOf<String>()
+
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_USER_PRESENT) {
-                // Keep call state, but a user who unlocked should not see an immediate replay.
-                main.removeCallbacks(tick)
-                scheduleTick()
+            when (intent?.action) {
+                Intent.ACTION_USER_PRESENT, Intent.ACTION_SCREEN_ON -> {
+                    main.removeCallbacks(tick)
+                    scheduleTick()
+                    stopBreatheReminder()
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    startBreatheReminderIfEligible()
+                }
             }
         }
     }
 
     override fun onCreate() {
         super.onCreate()
-        registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        registerReceiver(unlockReceiver, filter)
     }
 
     override fun onListenerConnected() {
@@ -112,6 +126,11 @@ class NotificationTrigger : NotificationListenerService() {
         // HiLight's own foreground-watcher notification, which would otherwise light the array through
         // the catch-all rule every time the watcher restarted.
         if (isOwnStatusNotification(sbn)) return
+
+        activeNotifKeys.add(sbn.key)
+        if (!screenOn() && store.breatheReminderEnabled.value) {
+            startBreatheReminderIfEligible()
+        }
 
         val info = readMessage(sbn)
 
@@ -226,12 +245,49 @@ class NotificationTrigger : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         runCatching {
             val key = sbn.key
-            if (!key.isNullOrEmpty()) synchronized(handled) { handled.remove(key) }
+            if (!key.isNullOrEmpty()) {
+                synchronized(handled) { handled.remove(key) }
+                activeNotifKeys.remove(key)
+            }
             incomingCalls.remove(sbn.key)
             store.cancelOwnedAlert("notification:${sbn.key}")
             store.cancelOwnedAlert("call:${sbn.key}")
+            if (activeNotifKeys.isEmpty()) stopBreatheReminder()
             reconcileSignals()
         }.onFailure { Log.w(TAG, "could not handle removal", it) }
+    }
+
+    private fun startBreatheReminderIfEligible() {
+        breatheJob?.cancel()
+        if (!store.breatheReminderEnabled.value) return
+        if (activeNotifKeys.isEmpty()) return
+        if (!screenOn()) {
+            val intervalSec = store.breatheReminderIntervalSec.value.coerceAtLeast(5)
+            breatheJob = observationScope?.launch {
+                while (true) {
+                    delay(intervalSec * 1000L)
+                    if (screenOn() || activeNotifKeys.isEmpty()) break
+                    store.showDeviceSignal(
+                        "breathe_reminder",
+                        Ambient(
+                            pattern = Pattern.BREATHE,
+                            color = CalibratedLedColors.EMERALD_GREEN,
+                            speedMs = 1000,
+                            speedMultiplier = 1.0f,
+                            maxBrightness = 0.15f,
+                            brightness = 0.15f
+                        ),
+                        2000
+                    )
+                }
+            }
+        }
+    }
+
+    private fun stopBreatheReminder() {
+        breatheJob?.cancel()
+        breatheJob = null
+        store.cancelOwnedAlert("breathe_reminder")
     }
 
     /**
@@ -249,6 +305,7 @@ class NotificationTrigger : NotificationListenerService() {
     }
 
     override fun onDestroy() {
+        stopBreatheReminder()
         onListenerDisconnected()
         unregisterReceiver(unlockReceiver)
         super.onDestroy()

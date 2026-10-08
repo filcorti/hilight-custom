@@ -368,6 +368,20 @@ class Store private constructor(private val app: Context) {
     private val _screenOffOnly = MutableStateFlow(prefs.getBoolean("screenOffOnly", false))
     val screenOffOnly: StateFlow<Boolean> = _screenOffOnly.asStateFlow()
 
+    private val _breatheReminderEnabled = MutableStateFlow(prefs.getBoolean("breatheReminderEnabled", false))
+    val breatheReminderEnabled: StateFlow<Boolean> = _breatheReminderEnabled.asStateFlow()
+    fun setBreatheReminderEnabled(v: Boolean) {
+        _breatheReminderEnabled.value = v
+        prefs.edit().putBoolean("breatheReminderEnabled", v).apply()
+    }
+
+    private val _breatheReminderIntervalSec = MutableStateFlow(prefs.getInt("breatheReminderIntervalSec", 15))
+    val breatheReminderIntervalSec: StateFlow<Int> = _breatheReminderIntervalSec.asStateFlow()
+    fun setBreatheReminderIntervalSec(v: Int) {
+        _breatheReminderIntervalSec.value = v
+        prefs.edit().putInt("breatheReminderIntervalSec", v).apply()
+    }
+
     private val _faceDownOnly = MutableStateFlow(prefs.getBoolean("faceDownOnly", false))
     val faceDownOnly: StateFlow<Boolean> = _faceDownOnly.asStateFlow()
 
