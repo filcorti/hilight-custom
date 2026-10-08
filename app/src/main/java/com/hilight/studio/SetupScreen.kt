@@ -32,11 +32,13 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -150,6 +152,40 @@ fun CollapsibleCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+enum class SetupSection(val title: String) {
+    BEHAVIOR("Comportamento"),
+    REST("Riposo"),
+    SYSTEM("Sistema")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SetupSectionSelector(
+    selectedSection: SetupSection,
+    onSectionSelected: (SetupSection) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SingleChoiceSegmentedButtonRow(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp)
+    ) {
+        SetupSection.entries.forEachIndexed { index, section ->
+            SegmentedButton(
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = SetupSection.entries.size
+                ),
+                onClick = { onSectionSelected(section) },
+                selected = selectedSection == section,
+                icon = {
+                    SegmentedButtonDefaults.Icon(active = selectedSection == section)
+                },
+                label = { Text(section.title, style = MaterialTheme.typography.labelLarge) }
+            )
+        }
+    }
+}
+
 @Composable
 fun SetupScreen(store: Store) {
     val ctx = LocalContext.current
@@ -199,7 +235,7 @@ fun SetupScreen(store: Store) {
     var selfTestCountdown by remember { mutableIntStateOf(0) }
     var selfTestWarning by remember { mutableStateOf<String?>(null) }
     var confirmingFaceDown by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedSection by remember { mutableStateOf(SetupSection.BEHAVIOR) }
 
     val updateScope = rememberCoroutineScope()
     val ioScope = rememberCoroutineScope()
@@ -311,27 +347,19 @@ fun SetupScreen(store: Store) {
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        PrimaryTabRow(
-            selectedTabIndex = selectedTab,
+        SetupSectionSelector(
+            selectedSection = selectedSection,
+            onSectionSelected = { selectedSection = it },
             modifier = Modifier.padding(bottom = 12.dp)
-        ) {
-            val tabTitles = listOf("Comportamento", "Riposo", "Sistema")
-            tabTitles.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, style = MaterialTheme.typography.titleSmall) }
-                )
-            }
-        }
+        )
 
         // Colonna senza .verticalScroll: lo scrolling e gestito dal contenitore dello schermo
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            when (selectedTab) {
-                0 -> {
+            when (selectedSection) {
+                SetupSection.BEHAVIOR -> {
                     // TAB 1: Comportamento
                     PixelCard(tone = 2) {
                         SectionTitle(
@@ -412,7 +440,7 @@ fun SetupScreen(store: Store) {
                     }
                 }
 
-                1 -> {
+                SetupSection.REST -> {
                     // TAB 2: Riposo & Batteria
                     PixelCard {
                         SectionTitle(
@@ -488,7 +516,7 @@ fun SetupScreen(store: Store) {
                     DeviceSignalsSection(store)
                 }
 
-                2 -> {
+                SetupSection.SYSTEM -> {
                     // TAB 3: Sistema & Manutenzione
                     val rendererConnected = store.isRendererConnectedForUi(status)
                     PixelCard(tone = 3) {
