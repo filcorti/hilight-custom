@@ -135,92 +135,46 @@ private fun App(store: Store, startInSetup: Boolean = false) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-            topBar = {
-                // single-line bar: the hero already carries the visual weight
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(
-                                painter = painterResource(R.drawable.hilight_logo),
-                                contentDescription = "HiLight Studio logo",
-                                modifier = Modifier.size(32.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("HiLight", style = MaterialTheme.typography.titleLarge)
-                        }
-                    },
-                    actions = {
-                        val rendererConnected = store.isRendererConnectedForUi(status)
-                        LivePill(
-                            text = if (rendererConnected) {
-                                stringResource(
-                                    R.string.main_connected_pill,
-                                    status.ledCount,
-                                    stringResource(active.labelRes),
-                                )
-                            } else {
-                                stringResource(R.string.main_not_connected)
-                            },
-                            ok = rendererConnected,
-                            modifier = Modifier.padding(end = 16.dp),
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            // single-line bar: the hero already carries the visual weight
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.hilight_logo),
+                            contentDescription = "HiLight Studio logo",
+                            modifier = Modifier.size(32.dp),
                         )
-                    },
-                    scrollBehavior = scrollBehavior,
-                )
-            },
-            bottomBar = {},
-        ) { pad ->
-            // tabs slide in the direction of travel, like the system's pagers
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    val forward = targetState.ordinal > initialState.ordinal
-                    val dir = if (forward) 1 else -1
-                    (slideInHorizontally(tween(320)) { w -> dir * w / 8 } + fadeIn(tween(220)))
-                        .togetherWith(
-                            slideOutHorizontally(tween(320)) { w -> -dir * w / 8 } + fadeOut(tween(160))
-                        )
-                },
-                label = "tab",
-                modifier = Modifier.padding(pad),
-            ) { current ->
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 100.dp),
-                ) {
-                    when (current) {
-                        Tab.LIVE -> LiveScreen(store)
-                        Tab.APPS -> AppRulesScreen(store)
-                        Tab.SETUP -> SetupScreen(store)
+                        Spacer(Modifier.width(8.dp))
+                        Text("HiLight", style = MaterialTheme.typography.titleLarge)
                     }
-                    Spacer(Modifier.height(28.dp))
-                }
-            }
-        }
-
-        // Floating Capsule Navigation Bar
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(32.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shadowElevation = 6.dp,
-            tonalElevation = 0.dp,
-        ) {
+                },
+                actions = {
+                    val rendererConnected = store.isRendererConnectedForUi(status)
+                    LivePill(
+                        text = if (rendererConnected) {
+                            stringResource(
+                                R.string.main_connected_pill,
+                                status.ledCount,
+                                stringResource(active.labelRes),
+                            )
+                        } else {
+                            stringResource(R.string.main_not_connected)
+                        },
+                        ok = rendererConnected,
+                        modifier = Modifier.padding(end = 16.dp),
+                    )
+                },
+                scrollBehavior = scrollBehavior,
+            )
+        },
+        bottomBar = {
             NavigationBar(
-                modifier = Modifier.height(64.dp),
-                containerColor = Color.Transparent,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 tonalElevation = 0.dp,
-                windowInsets = WindowInsets(0, 0, 0, 0),
             ) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
@@ -234,6 +188,34 @@ private fun App(store: Store, startInSetup: Boolean = false) {
                         alwaysShowLabel = true,
                     )
                 }
+            }
+        },
+    ) { pad ->
+        // tabs slide in the direction of travel, like the system's pagers
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                val forward = targetState.ordinal > initialState.ordinal
+                val dir = if (forward) 1 else -1
+                (slideInHorizontally(tween(320)) { w -> dir * w / 8 } + fadeIn(tween(220)))
+                    .togetherWith(
+                        slideOutHorizontally(tween(320)) { w -> -dir * w / 8 } + fadeOut(tween(160))
+                    )
+            },
+            label = "tab",
+            modifier = Modifier.padding(pad),
+        ) { current ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                when (current) {
+                    Tab.LIVE -> LiveScreen(store)
+                    Tab.APPS -> AppRulesScreen(store)
+                    Tab.SETUP -> SetupScreen(store)
+                }
+                Spacer(Modifier.height(28.dp))
             }
         }
     }
