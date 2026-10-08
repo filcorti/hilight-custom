@@ -124,11 +124,11 @@ private fun patternAccentInt(pattern: Pattern): Int = when (pattern) {
 
 private fun patternAccent(pattern: Pattern): Color = Color(patternAccentInt(pattern))
 
-private fun patternLook(pattern: Pattern, speedMultiplier: Float = 1.0f, maxBrightness: Float = 1.0f): Ambient = when (pattern) {
-    Pattern.GRADIENT -> Ambient(pattern = pattern, color = CalibratedLedColors.PURPLE, secondColor = CalibratedLedColors.CYAN, speedMs = 1200, speedMultiplier = speedMultiplier, maxBrightness = maxBrightness, brightness = 1f)
-    Pattern.RAINBOW -> Ambient(pattern = pattern, color = 0xFF7C4DFF.toInt(), rainbowSpread = true, speedMs = 1200, speedMultiplier = speedMultiplier, maxBrightness = maxBrightness, brightness = 1f)
-    Pattern.RANDOM -> Ambient(pattern = pattern, color = CalibratedLedColors.ORANGE, randomSaturation = 1f, speedMs = 1200, speedMultiplier = speedMultiplier, maxBrightness = maxBrightness, brightness = 1f)
-    else -> Ambient(pattern = pattern, color = patternAccentInt(pattern), speedMs = 1200, speedMultiplier = speedMultiplier, maxBrightness = maxBrightness, brightness = 1f)
+private fun patternLook(pattern: Pattern): Ambient = when (pattern) {
+    Pattern.GRADIENT -> Ambient(pattern = pattern, color = CalibratedLedColors.PURPLE, secondColor = CalibratedLedColors.CYAN, speedMs = 1200, brightness = 1f)
+    Pattern.RAINBOW -> Ambient(pattern = pattern, color = 0xFF7C4DFF.toInt(), rainbowSpread = true, speedMs = 1200, brightness = 1f)
+    Pattern.RANDOM -> Ambient(pattern = pattern, color = CalibratedLedColors.ORANGE, randomSaturation = 1f, speedMs = 1200, brightness = 1f)
+    else -> Ambient(pattern = pattern, color = patternAccentInt(pattern), speedMs = 1200, brightness = 1f)
 }
 
 /**
@@ -251,8 +251,6 @@ fun LiveScreen(store: Store) {
     }
 
     val allPatterns = remember { Pattern.entries.filter { it != Pattern.OFF } }
-    var speedMultiplier by remember { mutableStateOf(1.0f) }
-    var maxBrightness by remember { mutableStateOf(1.0f) }
 
     PixelCard {
         SectionTitle(
@@ -283,26 +281,11 @@ fun LiveScreen(store: Store) {
                         speedMs = 1200,
                         brightness = 1f,
                         durationMs = 4_000,
-                        look = patternLook(pattern, speedMultiplier, maxBrightness),
+                        look = patternLook(pattern),
                     )
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
-        PixelSlider(
-            label = "Velocità (${"%.1f".format(speedMultiplier)}x)",
-            value = speedMultiplier,
-            range = 0.5f..2.0f,
-            onChange = { speedMultiplier = it },
-            format = { "%.1fx".format(it) }
-        )
-        PixelSlider(
-            label = "Luminosità Picco (${(maxBrightness * 100).toInt()}%)",
-            value = maxBrightness,
-            range = 0.1f..1.0f,
-            onChange = { maxBrightness = it },
-            format = { "${(it * 100).toInt()}%" }
-        )
     }
 
     PixelCard {
