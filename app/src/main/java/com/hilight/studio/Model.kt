@@ -199,6 +199,9 @@ data class AppRule(
     val excludedPackages: Set<String> = emptySet(),
     val eventTarget: EventTarget = EventTarget.ALL,
     val knockEnabled: Boolean = false,
+    val contactFilter: String? = null,
+    val keywordFilter: String? = null,
+    val channelIdFilter: String? = null,
 ) {
     fun effectiveLook(colorOverride: Int = color): Ambient =
         (look ?: Ambient(secondColor = colorOverride, randomIntervalMs = 500)).copy(
@@ -212,7 +215,7 @@ data class AppRule(
 
     val isCatchAll: Boolean get() = pkg == ANY_APP
     val isConversationRule: Boolean
-        get() = !conversationKey.isNullOrBlank() || !conversationName.isNullOrBlank()
+        get() = !conversationKey.isNullOrBlank() || !conversationName.isNullOrBlank() || !contactFilter.isNullOrBlank() || !keywordFilter.isNullOrBlank() || !channelIdFilter.isNullOrBlank()
 
     val id: String = "$pkg|${trigger.name}|${conversationKey ?: conversationName ?: ""}|${eventTarget.name}"
 
@@ -232,6 +235,9 @@ data class AppRule(
         put("keyword", keyword)
         conversationKey?.let { put("conversationKey", it) }
         conversationName?.let { put("conversationName", it) }
+        contactFilter?.let { put("contactFilter", it) }
+        keywordFilter?.let { put("keywordFilter", it) }
+        channelIdFilter?.let { put("channelIdFilter", it) }
         put("includeGroups", includeGroups)
         put("conversationIsGroup", conversationIsGroup)
         look?.let { put("look", it.toPrefsJson()) }
@@ -261,6 +267,9 @@ data class AppRule(
             keyword = o.optString("keyword", ""),
             conversationKey = o.optString("conversationKey", "").takeIf { it.isNotEmpty() },
             conversationName = o.optString("conversationName", "").takeIf { it.isNotEmpty() },
+            contactFilter = o.optString("contactFilter", "").takeIf { it.isNotEmpty() },
+            keywordFilter = o.optString("keywordFilter", "").takeIf { it.isNotEmpty() },
+            channelIdFilter = o.optString("channelIdFilter", "").takeIf { it.isNotEmpty() },
             includeGroups = o.optBoolean("includeGroups", false),
             conversationIsGroup = o.optBoolean("conversationIsGroup", false),
             look = o.optJSONObject("look")?.let(Ambient::fromJson),

@@ -106,6 +106,7 @@ data class MessageInfo(
     val isCall: Boolean = false,
     /** Set from Android notification ranking; unknown ranking preserves existing behavior. */
     val isSilent: Boolean = false,
+    val channelId: String? = null,
 ) {
     /**
      * True when this looks like a chat the user could write a per-contact rule for.
@@ -289,9 +290,24 @@ object ConversationMatch {
         fun accepted(rule: AppRule, strength: MatchStrength): Pair<AppRule, MatchStrength>? =
             if (rule.ignoreSilent && info.isSilent) null else rule to strength
 
-        // A conversation rule on the catch-all package means "this person, in whichever app they
-        // reach me" — worth having, since the same person turns up on WhatsApp and on SMS. A rule
-        // naming the app beats it when both match, hence the package-exact tie-breaker.
+        fun matchesFilters(rule: AppRule, info: MessageInfo): Boolean {
+            val contactOk = rule.contactFilter.isNullOrBlank() || listOfNotNull(info.sender, info.title, info.conversationTitle).any { it.contains(rule.contactFilter, ignoreCase = true) }
+            val keywordOk = rule.keywordFilter.isNullOrBlank() || listOfNotNull(info.text, info.title).any { it.contains(rule.keywordFilter, ignoreCase = true) }
+            val channelOk = rule.channelIdFilter.isNullOrBlank() || rule.channelIdFilter == info.channelId
+            return contactOk && keywordOk && channelOk
+        }
+
+        // 1. Rules with advanced filters (contactFilter, keywordFilter, channelIdFilter) or conversation rules matching pkg or catch-all
+        val bestFiltered = candidates
+            .filter { (it.isConversationRule || !it.contactFilter.isNullOrBlank() || !it.keywordFilter.isNullOrBlank() || !it.channelIdFilter.isNullOrBlank()) && (it.pkg == info.pkg || it.isCatchAll) && matchesFilters(it, info) }
+            .mapNotNull { rule ->
+                val s = strength(rule, info) ?: if (rule.isConversationRule) MatchStrength.NAME else MatchStrength.APP
+                Triple(rule, s, if (rule.pkg == info.pkg) 1 else 0)
+            }
+            .maxWithOrNull(compareBy({ it.second.score }, { it.third }))
+        if (bestFiltered != null) return accepted(bestFiltered.first, bestFiltered.second)
+
+        // 2. Standard conversation rules
         val best = candidates
             .filter { it.isConversationRule && (it.pkg == info.pkg || it.isCatchAll) }
             .mapNotNull { rule ->
@@ -300,13 +316,12 @@ object ConversationMatch {
             .maxWithOrNull(compareBy({ it.second.score }, { it.third }))
         if (best != null) return accepted(best.first, best.second)
 
-        candidates.firstOrNull { it.pkg == info.pkg && !it.isConversationRule }
+        // 3. Exact package rules without filters
+        candidates.firstOrNull { it.pkg == info.pkg && !it.isConversationRule && it.contactFilter.isNullOrBlank() && it.keywordFilter.isNullOrBlank() && it.channelIdFilter.isNullOrBlank() }
             ?.let { return accepted(it, MatchStrength.APP) }
 
-        // Note that a catch-all rule still fires for everything this app's conversation rules did not
-        // match. That is intended — the catch-all is the "everything else" colour — but it does make a
-        // per-chat rule look as though it fires for everyone until the catch-all is turned off.
-        return candidates.firstOrNull { it.isCatchAll && !it.isConversationRule }
+        // 4. Catch-all rules without filters
+        return candidates.firstOrNull { it.isCatchAll && !it.isConversationRule && it.contactFilter.isNullOrBlank() && it.keywordFilter.isNullOrBlank() && it.channelIdFilter.isNullOrBlank() }
             ?.let { accepted(it, MatchStrength.CATCH_ALL) }
     }
 

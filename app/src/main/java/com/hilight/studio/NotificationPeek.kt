@@ -98,6 +98,7 @@ object NotificationPeek {
         }.getOrNull()
 
         val chat = style?.let { readStyle(it, extras) } ?: readLegacyMessages(extras)
+        val channelId = runCatching { n.channelId }.getOrNull().clean()
 
         return bare.copy(
             shortcutId = shortcutId,
@@ -110,6 +111,7 @@ object NotificationPeek {
             isMessagingStyle = style != null,
             messageStampMs = chat?.stampMs ?: 0L,
             isCall = isCall,
+            channelId = channelId,
         )
     }
 
