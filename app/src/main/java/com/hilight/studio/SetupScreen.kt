@@ -31,6 +31,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,6 +43,9 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -220,6 +225,14 @@ fun SetupScreen(store: Store) {
     val faceDownState by store.faceDownState.collectAsStateWithLifecycle()
     val breatheReminderEnabled by store.breatheReminderEnabled.collectAsStateWithLifecycle()
     val breatheReminderIntervalSec by store.breatheReminderIntervalSec.collectAsStateWithLifecycle()
+    val scheduledQuietEnabled by store.scheduledQuietEnabled.collectAsStateWithLifecycle()
+    val scheduledQuietStartHour by store.scheduledQuietStartHour.collectAsStateWithLifecycle()
+    val scheduledQuietStartMinute by store.scheduledQuietStartMinute.collectAsStateWithLifecycle()
+    val scheduledQuietEndHour by store.scheduledQuietEndHour.collectAsStateWithLifecycle()
+    val scheduledQuietEndMinute by store.scheduledQuietEndMinute.collectAsStateWithLifecycle()
+
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
     val faceDownSensorAvailable = remember(ctx) { ForegroundWatcher.hasFaceDownSensor(ctx) }
     val glowSuppression = suppression?.takeIf {
         it.settingsSection() == SettingsSuppressionSection.GLOW
@@ -532,6 +545,78 @@ fun SetupScreen(store: Store) {
                     }
 
                     DeviceSignalsSection(store)
+
+                    ElevatedCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Silenzioso programmato",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Caption("Disattiva i LED automaticamente durante la fascia oraria impostata.")
+                            ToggleRow("Silenzioso programmato", scheduledQuietEnabled) {
+                                store.setScheduledQuietEnabled(it)
+                            }
+                            if (scheduledQuietEnabled) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    FilledTonalButton(
+                                        onClick = { showStartPicker = true },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        ButtonLabel("Inizio: %02d:%02d".format(scheduledQuietStartHour, scheduledQuietStartMinute))
+                                    }
+                                    FilledTonalButton(
+                                        onClick = { showEndPicker = true },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        ButtonLabel("Fine: %02d:%02d".format(scheduledQuietEndHour, scheduledQuietEndMinute))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (showStartPicker) {
+                        M3TimePickerDialog(
+                            initialHour = scheduledQuietStartHour,
+                            initialMinute = scheduledQuietStartMinute,
+                            onDismiss = { showStartPicker = false },
+                            onConfirm = { h, m ->
+                                store.setScheduledQuietStartHour(h)
+                                store.setScheduledQuietStartMinute(m)
+                                showStartPicker = false
+                            }
+                        )
+                    }
+
+                    if (showEndPicker) {
+                        M3TimePickerDialog(
+                            initialHour = scheduledQuietEndHour,
+                            initialMinute = scheduledQuietEndMinute,
+                            onDismiss = { showEndPicker = false },
+                            onConfirm = { h, m ->
+                                store.setScheduledQuietEndHour(h)
+                                store.setScheduledQuietEndMinute(m)
+                                showEndPicker = false
+                            }
+                        )
+                    }
                 }
 
                 SetupSection.SYSTEM -> {
@@ -1059,4 +1144,41 @@ private fun hasNotificationAccess(ctx: Context): Boolean {
     val flat = Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners")
         ?: return false
     return flat.contains(ctx.packageName)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun M3TimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Int) -> Unit
+) {
+    val state = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annulla")
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                TimePicker(state = state)
+            }
+        }
+    )
 }

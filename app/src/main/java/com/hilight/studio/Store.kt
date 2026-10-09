@@ -382,6 +382,53 @@ class Store private constructor(private val app: Context) {
         prefs.edit().putInt("breatheReminderIntervalSec", v).apply()
     }
 
+    private val _scheduledQuietEnabled = MutableStateFlow(prefs.getBoolean("scheduledQuietEnabled", false))
+    val scheduledQuietEnabled: StateFlow<Boolean> = _scheduledQuietEnabled.asStateFlow()
+    fun setScheduledQuietEnabled(v: Boolean) {
+        _scheduledQuietEnabled.value = v
+        prefs.edit().putBoolean("scheduledQuietEnabled", v).apply()
+    }
+
+    private val _scheduledQuietStartHour = MutableStateFlow(prefs.getInt("scheduledQuietStartHour", 23))
+    val scheduledQuietStartHour: StateFlow<Int> = _scheduledQuietStartHour.asStateFlow()
+    fun setScheduledQuietStartHour(v: Int) {
+        _scheduledQuietStartHour.value = v
+        prefs.edit().putInt("scheduledQuietStartHour", v).apply()
+    }
+
+    private val _scheduledQuietStartMinute = MutableStateFlow(prefs.getInt("scheduledQuietStartMinute", 0))
+    val scheduledQuietStartMinute: StateFlow<Int> = _scheduledQuietStartMinute.asStateFlow()
+    fun setScheduledQuietStartMinute(v: Int) {
+        _scheduledQuietStartMinute.value = v
+        prefs.edit().putInt("scheduledQuietStartMinute", v).apply()
+    }
+
+    private val _scheduledQuietEndHour = MutableStateFlow(prefs.getInt("scheduledQuietEndHour", 7))
+    val scheduledQuietEndHour: StateFlow<Int> = _scheduledQuietEndHour.asStateFlow()
+    fun setScheduledQuietEndHour(v: Int) {
+        _scheduledQuietEndHour.value = v
+        prefs.edit().putInt("scheduledQuietEndHour", v).apply()
+    }
+
+    private val _scheduledQuietEndMinute = MutableStateFlow(prefs.getInt("scheduledQuietEndMinute", 0))
+    val scheduledQuietEndMinute: StateFlow<Int> = _scheduledQuietEndMinute.asStateFlow()
+    fun setScheduledQuietEndMinute(v: Int) {
+        _scheduledQuietEndMinute.value = v
+        prefs.edit().putInt("scheduledQuietEndMinute", v).apply()
+    }
+
+    fun isScheduledQuietActive(): Boolean {
+        if (!_scheduledQuietEnabled.value) return false
+        val now = java.time.LocalTime.now()
+        val start = java.time.LocalTime.of(_scheduledQuietStartHour.value, _scheduledQuietStartMinute.value)
+        val end = java.time.LocalTime.of(_scheduledQuietEndHour.value, _scheduledQuietEndMinute.value)
+        return if (start.isAfter(end)) {
+            now.isAfter(start) || now.isBefore(end) || now == start
+        } else {
+            (now.isAfter(start) || now == start) && now.isBefore(end)
+        }
+    }
+
     private val _faceDownOnly = MutableStateFlow(prefs.getBoolean("faceDownOnly", false))
     val faceDownOnly: StateFlow<Boolean> = _faceDownOnly.asStateFlow()
 

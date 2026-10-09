@@ -181,6 +181,11 @@ class NotificationTrigger : NotificationListenerService() {
             store.noteRuleFired(rule, info)
             return
         }
+        if (store.isScheduledQuietActive()) {
+            Log.i(TAG, "matched ${info.pkg} but suppressed by scheduled quiet hours")
+            store.noteRuleFired(rule, info)
+            return
+        }
 
         // How it matched, never what the message said and never who sent it. A conversation rule's
         // label is a contact's name, and CONTRIBUTING asks users to scrub personal data out of logs
@@ -260,6 +265,7 @@ class NotificationTrigger : NotificationListenerService() {
     private fun startBreatheReminderIfEligible() {
         breatheJob?.cancel()
         if (!store.breatheReminderEnabled.value) return
+        if (store.isScheduledQuietActive()) return
         if (activeNotifKeys.isEmpty()) return
         if (!screenOn()) {
             val intervalSec = store.breatheReminderIntervalSec.value.coerceAtLeast(5)
