@@ -30,8 +30,8 @@ android {
         // supported hardware prevents installation on devices the renderer cannot support.
         minSdk = 37
         targetSdk = 37
-        versionCode = 35
-        versionName = "1.0.33"
+        versionCode = 36
+        versionName = "1.0.34"
         ndk {
             abiFilters.addAll(listOf("arm64-v8a"))
         }

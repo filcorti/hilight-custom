@@ -290,22 +290,22 @@ object ConversationMatch {
         fun accepted(rule: AppRule, strength: MatchStrength): Pair<AppRule, MatchStrength>? =
             if (rule.ignoreSilent && info.isSilent) null else rule to strength
 
-        fun matchesFilters(rule: AppRule, info: MessageInfo): Boolean {
+        fun matchesAdvancedFilters(rule: AppRule, info: MessageInfo): Boolean {
             val contactOk = rule.contactFilter.isNullOrBlank() || listOfNotNull(info.sender, info.title, info.conversationTitle).any { it.contains(rule.contactFilter, ignoreCase = true) }
             val keywordOk = rule.keywordFilter.isNullOrBlank() || listOfNotNull(info.text, info.title).any { it.contains(rule.keywordFilter, ignoreCase = true) }
             val channelOk = rule.channelIdFilter.isNullOrBlank() || rule.channelIdFilter == info.channelId
-            return contactOk && keywordOk && channelOk
+            val hasAdvanced = !rule.contactFilter.isNullOrBlank() || !rule.keywordFilter.isNullOrBlank() || !rule.channelIdFilter.isNullOrBlank()
+            return !hasAdvanced || (contactOk && keywordOk && channelOk)
         }
 
-        // 1. Rules with advanced filters (contactFilter, keywordFilter, channelIdFilter) or conversation rules matching pkg or catch-all
-        val bestFiltered = candidates
-            .filter { (it.isConversationRule || !it.contactFilter.isNullOrBlank() || !it.keywordFilter.isNullOrBlank() || !it.channelIdFilter.isNullOrBlank()) && (it.pkg == info.pkg || it.isCatchAll) && matchesFilters(it, info) }
+        // 1. Rules with advanced filters matching pkg or catch-all
+        val bestAdvanced = candidates
+            .filter { (!it.contactFilter.isNullOrBlank() || !it.keywordFilter.isNullOrBlank() || !it.channelIdFilter.isNullOrBlank()) && (it.pkg == info.pkg || it.isCatchAll) && matchesAdvancedFilters(it, info) }
             .mapNotNull { rule ->
-                val s = strength(rule, info) ?: if (rule.isConversationRule) MatchStrength.NAME else MatchStrength.APP
-                Triple(rule, s, if (rule.pkg == info.pkg) 1 else 0)
+                strength(rule, info)?.let { s -> Triple(rule, s, if (rule.pkg == info.pkg) 1 else 0) }
             }
             .maxWithOrNull(compareBy({ it.second.score }, { it.third }))
-        if (bestFiltered != null) return accepted(bestFiltered.first, bestFiltered.second)
+        if (bestAdvanced != null) return accepted(bestAdvanced.first, bestAdvanced.second)
 
         // 2. Standard conversation rules
         val best = candidates
