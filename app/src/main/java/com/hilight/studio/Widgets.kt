@@ -18,15 +18,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -92,6 +103,10 @@ fun ColorPicker(
 ) {
     val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(color, it) }
     val haptics = LocalHapticFeedback.current
+    var editingHex by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboardManager = remember { context.getSystemService(android.content.ClipboardManager::class.java) }
+    val hex = "#%06X".format(0xFFFFFF and color)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -106,6 +121,73 @@ fun ColorPicker(
                     .background(Color(color), CircleShape)
                     .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
             )
+        }
+
+        // HEX Row + Copy/Paste
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { editingHex = true }
+            ) {
+                Box(
+                    Modifier
+                        .size(24.dp)
+                        .background(Color(color), CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                )
+                Text(
+                    hex,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(
+                    onClick = {
+                        clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("color", hex))
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        Toast.makeText(context, "Copiato: $hex", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.ContentCopy,
+                        contentDescription = "Copia HEX",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        val clip = clipboardManager?.primaryClip
+                        if (clip != null && clip.itemCount > 0) {
+                            val text = clip.getItemAt(0).text?.toString()?.trim()
+                            runCatching {
+                                val targetHex = if (text?.startsWith("#") == true) text else "#$text"
+                                val parsed = android.graphics.Color.parseColor(targetHex)
+                                onColor(0xFF000000.toInt() or parsed)
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                Toast.makeText(context, "Incollato: $targetHex", Toast.LENGTH_SHORT).show()
+                            }.onFailure {
+                                Toast.makeText(context, "Codice HEX non valido dagli appunti", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.ContentPaste,
+                        contentDescription = "Incolla HEX",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
 
         Row(
@@ -134,6 +216,27 @@ fun ColorPicker(
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             onColor(c)
                         }
+                )
+            }
+        }
+
+        // hue header + degrees indicator
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Tonalità (Hue)", style = MaterialTheme.typography.bodyLarge)
+            Box(
+                Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .padding(horizontal = 10.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    "${hsv[0].toInt()}°",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
         }
@@ -177,6 +280,43 @@ fun ColorPicker(
         PixelSlider(stringResource(R.string.widget_intensity), hsv[2], 0.05f..1f, { v ->
             onColor(android.graphics.Color.HSVToColor(floatArrayOf(hsv[0], hsv[1], v)))
         }) { stringResource(R.string.widget_percent, (it * 100).toInt()) }
+    }
+
+    if (editingHex) {
+        var textInput by remember { mutableStateOf(hex) }
+        AlertDialog(
+            onDismissRequest = { editingHex = false },
+            shape = MaterialTheme.shapes.extraLarge,
+            title = { Text("Inserisci Codice HEX") },
+            text = {
+                OutlinedTextField(
+                    value = textInput,
+                    onValueChange = { textInput = it },
+                    singleLine = true,
+                    label = { Text("HEX (es. #FF5722)") },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            val targetHex = if (textInput.startsWith("#")) textInput else "#$textInput"
+                            val parsed = android.graphics.Color.parseColor(targetHex)
+                            onColor(0xFF000000.toInt() or parsed)
+                            editingHex = false
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }.onFailure {
+                            Toast.makeText(context, "Formato HEX non valido", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) { ButtonLabel("Salva") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingHex = false }) {
+                    ButtonLabel("Annulla")
+                }
+            }
+        )
     }
 }
 
