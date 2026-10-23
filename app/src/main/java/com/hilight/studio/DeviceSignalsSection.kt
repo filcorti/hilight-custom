@@ -21,6 +21,8 @@ import kotlin.math.roundToInt
 @Composable
 fun DeviceSignalsSection(store: Store) {
     val settings by store.deviceSignals.settings.collectAsStateWithLifecycle()
+    val pocketGuardEnabled by store.pocketGuardEnabled.collectAsStateWithLifecycle()
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -46,6 +48,10 @@ fun DeviceSignalsSection(store: Store) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            ToggleRow("Pocket Guard (In tasca)", pocketGuardEnabled) {
+                store.setPocketGuardEnabled(it)
+            }
+            Caption("Blocca i LED se il sensore è coperto e il telefono non è poggiato in piano")
             ToggleRow(stringResource(R.string.device_signals_charging), settings.chargingEnabled) {
                 store.deviceSignals.updateSettings { s -> s.copy(chargingEnabled = it) }
             }

@@ -375,6 +375,13 @@ class Store private constructor(private val app: Context) {
         prefs.edit().putBoolean("breatheReminderEnabled", v).apply()
     }
 
+    private val _pocketGuardEnabled = MutableStateFlow(prefs.getBoolean("pocketGuardEnabled", true))
+    val pocketGuardEnabled: StateFlow<Boolean> = _pocketGuardEnabled.asStateFlow()
+    fun setPocketGuardEnabled(v: Boolean) {
+        _pocketGuardEnabled.value = v
+        prefs.edit().putBoolean("pocketGuardEnabled", v).apply()
+    }
+
     private val _breatheReminderIntervalSec = MutableStateFlow(prefs.getInt("breatheReminderIntervalSec", 15))
     val breatheReminderIntervalSec: StateFlow<Int> = _breatheReminderIntervalSec.asStateFlow()
     fun setBreatheReminderIntervalSec(v: Int) {
