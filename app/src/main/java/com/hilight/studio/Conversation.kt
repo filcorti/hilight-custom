@@ -302,7 +302,8 @@ object ConversationMatch {
         val bestAdvanced = candidates
             .filter { (!it.contactFilter.isNullOrBlank() || !it.keywordFilter.isNullOrBlank() || !it.channelIdFilter.isNullOrBlank()) && (it.pkg == info.pkg || it.isCatchAll) && matchesAdvancedFilters(it, info) }
             .mapNotNull { rule ->
-                strength(rule, info)?.let { s -> Triple(rule, s, if (rule.pkg == info.pkg) 1 else 0) }
+                val s = strength(rule, info) ?: if (rule.pkg == info.pkg) MatchStrength.APP else MatchStrength.CATCH_ALL
+                Triple(rule, s, if (rule.pkg == info.pkg) 1 else 0)
             }
             .maxWithOrNull(compareBy({ it.second.score }, { it.third }))
         if (bestAdvanced != null) return accepted(bestAdvanced.first, bestAdvanced.second)

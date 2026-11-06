@@ -794,6 +794,17 @@ private fun RuleEditorDialog(
                                 modifier = Modifier.fillMaxWidth(),
                             )
 
+                            OutlinedTextField(
+                                value = r.keywordFilter ?: "",
+                                onValueChange = { r = r.copy(keywordFilter = it.ifBlank { null }) },
+                                label = { Text("Filtro Parola Chiave (es. Urgente)") },
+                                placeholder = { Text("es. Bonifico, Codice, Mamma...") },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.medium,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Caption("Fai scattare la regola solo se il testo o titolo contiene questa parola.")
+
                             ToggleRow(stringResource(R.string.rules_ignore_silent), r.ignoreSilent) {
                                 r = r.copy(ignoreSilent = it)
                             }

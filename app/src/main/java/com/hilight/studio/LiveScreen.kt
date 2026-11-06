@@ -140,6 +140,31 @@ private fun tileAccent(pattern: Pattern, color: Int): Color = when {
     else -> patternAccent(pattern)
 }
 
+enum class PatternCategory(val label: String) {
+    ALL("Tutti"),
+    BASIC("Base"),
+    DYNAMIC("Dinamici"),
+    SPECIAL("Speciali");
+
+    fun matches(pattern: Pattern): Boolean = when (this) {
+        ALL -> true
+        BASIC -> pattern in setOf(
+            Pattern.SOLID, Pattern.GRADIENT, Pattern.BREATHE, Pattern.BLINK,
+            Pattern.PULSE, Pattern.HEARTBEAT
+        )
+        DYNAMIC -> pattern in setOf(
+            Pattern.CHASE, Pattern.COMET, Pattern.WAVE, Pattern.RAINBOW,
+            Pattern.STROBE, Pattern.BOUNCE, Pattern.RADAR, Pattern.CONVERGE,
+            Pattern.DIVERGE, Pattern.CLOCKWISE_FILL, Pattern.RIPPLE
+        )
+        SPECIAL -> pattern in setOf(
+            Pattern.METER, Pattern.GLITCH, Pattern.SCANNER, Pattern.AURORA,
+            Pattern.FIRE, Pattern.SPARKLE, Pattern.RANDOM, Pattern.VALERIA,
+            Pattern.MORSE_VALERIA, Pattern.CUSTOM
+        )
+    }
+}
+
 /** Home surface: the phone itself, the master switch, and one-tap effects. */
 @Composable
 fun LiveScreen(store: Store) {
@@ -251,38 +276,63 @@ fun LiveScreen(store: Store) {
     }
 
     val allPatterns = remember { Pattern.entries.filter { it != Pattern.OFF } }
+    var selectedCategory by remember { mutableStateOf(PatternCategory.ALL) }
+    val filteredPatterns = remember(selectedCategory) {
+        allPatterns.filter { selectedCategory.matches(it) }
+    }
 
     PixelCard {
         SectionTitle(
             stringResource(R.string.live_tests_title),
             trailing = {
-                Caption("${allPatterns.size} effetti")
+                Caption("${filteredPatterns.size} effetti")
             }
         )
         Caption(stringResource(R.string.live_tests_caption))
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+
+        Spacer(Modifier.height(6.dp))
+        SegmentedSelector(
+            options = PatternCategory.entries,
+            selected = selectedCategory,
+            label = { it.label },
+            onSelect = { selectedCategory = it },
+        )
+        Spacer(Modifier.height(8.dp))
+
+        val rows = remember(filteredPatterns) { filteredPatterns.chunked(3) }
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         ) {
-            items(allPatterns, key = { it.key }) { pattern ->
-                val label = stringResource(pattern.shortLabelRes)
-                val icon = patternIcon(pattern)
-                val accent = patternAccent(pattern)
-                PixelTile(
-                    label = label,
-                    icon = icon,
-                    accent = accent,
-                    enabled = enabled && status.alive,
-                    modifier = Modifier.width(108.dp),
+            rows.forEach { rowPatterns ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    launchPreview(
-                        pattern = pattern,
-                        color = patternAccentInt(pattern),
-                        speedMs = 1200,
-                        brightness = 1f,
-                        durationMs = 4_000,
-                        look = patternLook(pattern),
-                    )
+                    rowPatterns.forEach { pattern ->
+                        val label = stringResource(pattern.shortLabelRes)
+                        val icon = patternIcon(pattern)
+                        val accent = patternAccent(pattern)
+                        PixelTile(
+                            label = label,
+                            icon = icon,
+                            accent = accent,
+                            enabled = enabled && status.alive,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            launchPreview(
+                                pattern = pattern,
+                                color = patternAccentInt(pattern),
+                                speedMs = 1200,
+                                brightness = 1f,
+                                durationMs = 4_000,
+                                look = patternLook(pattern),
+                            )
+                        }
+                    }
+                    repeat(3 - rowPatterns.size) {
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }

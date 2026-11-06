@@ -590,4 +590,17 @@ class ConversationMatchTest {
         // unless it brought a stable id with it, which is all the matcher needs
         assertTrue(ConversationMatch.isMatchable(convoRule(name = SMILEY, key = "chat-9")))
     }
+
+    @Test
+    fun `keywordFilter matches notification title or text`() {
+        val rule = AppRule(pkg = WHATSAPP, label = "Urgent Filter", keywordFilter = "URGENT")
+        val matchingNotif = notif(pkg = WHATSAPP, title = "Boss", text = "This is urgent please check!")
+        val nonMatchingNotif = notif(pkg = WHATSAPP, title = "Friend", text = "Hey let's get coffee")
+
+        val matchResult = ConversationMatch.resolve(listOf(rule), matchingNotif)
+        assertEquals(rule.id, matchResult?.id)
+
+        val noMatchResult = ConversationMatch.resolve(listOf(rule), nonMatchingNotif)
+        assertNull(noMatchResult)
+    }
 }

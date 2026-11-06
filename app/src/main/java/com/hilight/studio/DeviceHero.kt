@@ -6,13 +6,17 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -113,6 +117,19 @@ fun DeviceHero(
         label = "bloom",
     )
 
+    var tiltX by remember { mutableStateOf(0f) }
+    var tiltY by remember { mutableStateOf(0f) }
+    val animatedTiltX by animateFloatAsState(
+        targetValue = tiltX,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "tiltX",
+    )
+    val animatedTiltY by animateFloatAsState(
+        targetValue = tiltY,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "tiltY",
+    )
+
     // Assembled before the modifier chain because a semantics block is not a composable scope, so
     // stringResource cannot be called inside it.
     val modelName = profile.labelRes?.let { stringResource(it) } ?: profile.label
@@ -127,7 +144,17 @@ fun DeviceHero(
         modifier
             .fillMaxWidth()
             .height(heightDp.dp)
-            .clip(RoundedCornerShape(26.dp))           // the device is cropped by the card edge
+            .clip(RoundedCornerShape(26.dp))
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragEnd = { tiltX = 0f; tiltY = 0f },
+                    onDragCancel = { tiltX = 0f; tiltY = 0f },
+                ) { change, dragAmount ->
+                    change.consume()
+                    tiltX = (tiltX + dragAmount.x * 0.08f).coerceIn(-18f, 18f)
+                    tiltY = (tiltY + dragAmount.y * 0.08f).coerceIn(-18f, 18f)
+                }
+            }
             .semantics { contentDescription = description },
     ) {
         Canvas(Modifier.fillMaxWidth().height(heightDp.dp)) {
@@ -135,19 +162,17 @@ fun DeviceHero(
             drawRect(
                 brush = Brush.radialGradient(
                     listOf(StageHigh, Stage),
-                    center = Offset(size.width / 2f, size.height * 0.30f),
+                    center = Offset(size.width / 2f + animatedTiltX * 2f, size.height * 0.30f + animatedTiltY * 2f),
                     radius = size.width * 0.8f,
                 ),
             )
 
-            // Only the top of the device is shown, framed on the camera bar the way Google's own
-            // close-ups are; the body deliberately runs off the bottom of the card.
             val phoneW = size.width * profile.zoom
             val phoneH = phoneW / profile.aspect
             val left =
-                if (profile.originX >= 0f) size.width * profile.originX
-                else (size.width - phoneW) / 2f
-            val top = size.height * 0.07f
+                (if (profile.originX >= 0f) size.width * profile.originX
+                else (size.width - phoneW) / 2f) + animatedTiltX
+            val top = size.height * 0.07f + animatedTiltY
             val corner = phoneW * if (profile.foldStyle) 0.10f else 0.13f
 
             if (bloom > 0.01f) drawSpill(frame, left, top, phoneW, bloom)
@@ -387,17 +412,52 @@ private fun DrawScope.drawSpill(colors: IntArray, left: Float, top: Float, phone
     val avg = Color(r / n, g / n, b / n)
     val lum = (avg.red + avg.green + avg.blue) / 3f
     if (lum < 0.02f) return
-    val center = Offset(left + phoneW / 2f, top + phoneW * 0.22f)
-    val radius = phoneW * 1.25f
+
+    val center = Offset(left + phoneW * 0.78f, top + phoneW * 0.22f)
+    val radius = phoneW * 1.35f
+
+    // 1. Wide ambient soft backlight
     drawCircle(
         brush = Brush.radialGradient(
-            listOf(avg.copy(alpha = 0.32f * bloom * lum), Color.Transparent),
+            listOf(avg.copy(alpha = 0.28f * bloom * lum), Color.Transparent),
             center = center,
             radius = radius,
         ),
         radius = radius,
         center = center,
     )
+
+    // 2. Focused vibrant inner glow
+    drawCircle(
+        brush = Brush.radialGradient(
+            listOf(avg.copy(alpha = 0.45f * bloom * lum), avg.copy(alpha = 0.15f * bloom * lum), Color.Transparent),
+            center = center,
+            radius = radius * 0.6f,
+        ),
+        radius = radius * 0.6f,
+        center = center,
+    )
+
+    // 3. Multi-spectral individual LED radial spots
+    for (i in colors.indices) {
+        val c = Color(colors[i])
+        val ledLum = (c.red + c.green + c.blue) / 3f
+        if (ledLum < 0.05f) continue
+        val angle = (i.toFloat() / n) * 2f * Math.PI.toFloat() - Math.PI.toFloat() / 2f
+        val spotCenter = Offset(
+            center.x + cos(angle) * phoneW * 0.18f,
+            center.y + sin(angle) * phoneW * 0.18f,
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(c.copy(alpha = 0.35f * bloom * ledLum), Color.Transparent),
+                center = spotCenter,
+                radius = phoneW * 0.5f,
+            ),
+            radius = phoneW * 0.5f,
+            center = spotCenter,
+        )
+    }
 }
 
 /**

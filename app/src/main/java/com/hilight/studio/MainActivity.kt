@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.DisplaySettings
 import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -109,6 +110,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class Tab(@StringRes val labelRes: Int, val icon: ImageVector) {
     LIVE(R.string.tab_live, Icons.Rounded.Lightbulb),
+    STYLE(R.string.tab_style, Icons.Rounded.Palette),
     APPS(R.string.tab_apps, Icons.Rounded.Apps),
     SETUP(R.string.tab_setup, Icons.Rounded.DisplaySettings),
 }
@@ -222,6 +224,7 @@ private fun App(store: Store, startInSetup: Boolean = false) {
             ) {
                 when (current) {
                     Tab.LIVE -> LiveScreen(store)
+                    Tab.STYLE -> AmbientScreen(store)
                     Tab.APPS -> AppRulesScreen(store)
                     Tab.SETUP -> SetupScreen(store)
                 }
