@@ -87,6 +87,12 @@ fun DeviceSignalsSection(store: Store) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ColorPicker(settings.dndColor, { color -> store.deviceSignals.updateSettings { it.copy(dndColor = color) } })
+                Text("Modalità Effetto DND", style = MaterialTheme.typography.bodyMedium)
+                PatternCarousel(
+                    selected = settings.dndPattern,
+                    options = listOf(Pattern.BLINK, Pattern.CHASE, Pattern.RAINBOW, Pattern.METER, Pattern.FIRE, Pattern.PULSE),
+                    onSelect = { pattern -> store.deviceSignals.updateSettings { it.copy(dndPattern = pattern) } }
+                )
             }
             ToggleRow(stringResource(R.string.device_signals_calls), settings.callsEnabled) {
                 store.deviceSignals.updateSettings { s -> s.copy(callsEnabled = it) }
@@ -98,6 +104,12 @@ fun DeviceSignalsSection(store: Store) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ColorPicker(settings.callColor, { color -> store.deviceSignals.updateSettings { it.copy(callColor = color) } })
+                Text("Modalità Effetto Chiamate", style = MaterialTheme.typography.bodyMedium)
+                PatternCarousel(
+                    selected = settings.callPattern,
+                    options = listOf(Pattern.BLINK, Pattern.CHASE, Pattern.RAINBOW, Pattern.METER, Pattern.FIRE, Pattern.PULSE),
+                    onSelect = { pattern -> store.deviceSignals.updateSettings { it.copy(callPattern = pattern) } }
+                )
             }
         }
     }

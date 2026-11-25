@@ -140,31 +140,6 @@ private fun tileAccent(pattern: Pattern, color: Int): Color = when {
     else -> patternAccent(pattern)
 }
 
-enum class PatternCategory(val label: String) {
-    ALL("Tutti"),
-    BASIC("Base"),
-    DYNAMIC("Dinamici"),
-    SPECIAL("Speciali");
-
-    fun matches(pattern: Pattern): Boolean = when (this) {
-        ALL -> true
-        BASIC -> pattern in setOf(
-            Pattern.SOLID, Pattern.GRADIENT, Pattern.BREATHE, Pattern.BLINK,
-            Pattern.PULSE, Pattern.HEARTBEAT
-        )
-        DYNAMIC -> pattern in setOf(
-            Pattern.CHASE, Pattern.COMET, Pattern.WAVE, Pattern.RAINBOW,
-            Pattern.STROBE, Pattern.BOUNCE, Pattern.RADAR, Pattern.CONVERGE,
-            Pattern.DIVERGE, Pattern.CLOCKWISE_FILL, Pattern.RIPPLE
-        )
-        SPECIAL -> pattern in setOf(
-            Pattern.METER, Pattern.GLITCH, Pattern.SCANNER, Pattern.AURORA,
-            Pattern.FIRE, Pattern.SPARKLE, Pattern.RANDOM, Pattern.VALERIA,
-            Pattern.MORSE_VALERIA, Pattern.CUSTOM
-        )
-    }
-}
-
 /** Home surface: the phone itself, the master switch, and one-tap effects. */
 @Composable
 fun LiveScreen(store: Store) {
@@ -275,31 +250,28 @@ fun LiveScreen(store: Store) {
         }
     }
 
-    val allPatterns = remember { Pattern.entries.filter { it != Pattern.OFF } }
-    var selectedCategory by remember { mutableStateOf(PatternCategory.ALL) }
-    val filteredPatterns = remember(selectedCategory) {
-        allPatterns.filter { selectedCategory.matches(it) }
+    val corePatterns = remember {
+        listOf(
+            Pattern.BLINK,
+            Pattern.CHASE,
+            Pattern.RAINBOW,
+            Pattern.METER,
+            Pattern.FIRE,
+        )
     }
 
     PixelCard {
         SectionTitle(
             stringResource(R.string.live_tests_title),
             trailing = {
-                Caption("${filteredPatterns.size} effetti")
+                Caption("${corePatterns.size} effetti")
             }
         )
         Caption(stringResource(R.string.live_tests_caption))
 
-        Spacer(Modifier.height(6.dp))
-        SegmentedSelector(
-            options = PatternCategory.entries,
-            selected = selectedCategory,
-            label = { it.label },
-            onSelect = { selectedCategory = it },
-        )
         Spacer(Modifier.height(8.dp))
 
-        val rows = remember(filteredPatterns) { filteredPatterns.chunked(3) }
+        val rows = remember(corePatterns) { corePatterns.chunked(3) }
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

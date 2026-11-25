@@ -86,7 +86,6 @@ fun AppRulesScreen(store: Store) {
     val launchPreview = rememberPreviewLauncher(store)
     val rules by store.rules.collectAsStateWithLifecycle()
     val presets by store.presets.collectAsStateWithLifecycle()
-    val privacyRules by store.privacyRules.collectAsStateWithLifecycle()
     val conversations by store.conversations.collectAsStateWithLifecycle()
     val lastMatch by store.lastMatch.collectAsStateWithLifecycle()
     val faceDownNoticeAccepted by store.faceDownNoticeAccepted.collectAsStateWithLifecycle()
@@ -96,10 +95,6 @@ fun AppRulesScreen(store: Store) {
     var pickingChatIn by remember { mutableStateOf<InstalledApp?>(null) }
     var editing by remember { mutableStateOf<RuleEditorState?>(null) }
     var copyingFrom by remember { mutableStateOf<AppRule?>(null) }
-    var editingPrivacy by remember { mutableStateOf<PrivacyRule?>(null) }
-    var choosingPrivacyActivity by remember { mutableStateOf(false) }
-    var privacyPrefilledApp by remember { mutableStateOf<InstalledApp?>(null) }
-    var pickingPrivacyAppFor by remember { mutableStateOf<PrivacyActivity?>(null) }
     val learnedPackages = remember(conversations) {
         conversations.mapTo(mutableSetOf()) { it.pkg }
     }
@@ -167,18 +162,6 @@ fun AppRulesScreen(store: Store) {
             }
         }
     }
-
-    PrivacyRulesSection(
-        rules = privacyRules,
-        onAdd = {
-            privacyPrefilledApp = null
-            choosingPrivacyActivity = true
-        },
-        onToggle = { store.upsertPrivacyRule(it.copy(enabled = !it.enabled), replacing = it) },
-        onEdit = { editingPrivacy = it },
-        onTest = { launchPreview(it.pattern, it.color, it.speedMs, it.brightness, it.lightMs) },
-        onDelete = store::removePrivacyRule,
-    )
 
     if (picking) {
         AppPickerDialog(
@@ -252,11 +235,6 @@ fun AppRulesScreen(store: Store) {
                 editing = null
                 copyingFrom = draft
             }),
-            onAddPrivacy = if (rule.isConversationRule || rule.isCatchAll) null else ({
-                editing = null
-                privacyPrefilledApp = InstalledApp(rule.pkg, rule.label, null)
-                choosingPrivacyActivity = true
-            }),
         )
     }
 
@@ -271,53 +249,6 @@ fun AppRulesScreen(store: Store) {
                     copyWholeAppRule(source, app.pkg, app.label),
                     isNew = true,
                 )
-            },
-        )
-    }
-
-    if (choosingPrivacyActivity) {
-        PrivacyActivityPickerDialog(
-            onDismiss = {
-                choosingPrivacyActivity = false
-                privacyPrefilledApp = null
-            },
-            onPick = { activity ->
-                choosingPrivacyActivity = false
-                val app = privacyPrefilledApp
-                privacyPrefilledApp = null
-                if (app == null) {
-                    pickingPrivacyAppFor = activity
-                } else {
-                    val fresh = PrivacyRule.default(activity, app.pkg, app.label)
-                    editingPrivacy = privacyRules.firstOrNull { it.id == fresh.id } ?: fresh
-                }
-            },
-        )
-    }
-
-    pickingPrivacyAppFor?.let { activity ->
-        AppPickerDialog(
-            alsoOffer = learnedPackages,
-            onDismiss = { pickingPrivacyAppFor = null },
-            onPick = { app ->
-                pickingPrivacyAppFor = null
-                val fresh = PrivacyRule.default(activity, app.pkg, app.label)
-                editingPrivacy = privacyRules.firstOrNull { it.id == fresh.id } ?: fresh
-            },
-        )
-    }
-
-    editingPrivacy?.let { rule ->
-        PrivacyRuleEditorDialog(
-            rule = rule,
-            existing = privacyRules,
-            onDismiss = { editingPrivacy = null },
-            onSave = {
-                store.upsertPrivacyRule(it, replacing = rule)
-                editingPrivacy = null
-            },
-            onTest = {
-                launchPreview(it.pattern, it.color, it.speedMs, it.brightness, it.lightMs)
             },
         )
     }
@@ -628,7 +559,6 @@ private fun RuleEditorDialog(
     faceDownSensorAvailable: Boolean,
     onAcceptFaceDownNotice: () -> Unit,
     onCopy: ((AppRule) -> Unit)?,
-    onAddPrivacy: (() -> Unit)?,
 ) {
     var r by remember { mutableStateOf(rule) }
     var confirmingFaceDown by remember { mutableStateOf(false) }
@@ -888,12 +818,6 @@ private fun RuleEditorDialog(
                 if (onCopy != null) {
                     TextButton(onClick = { onCopy(r) }, modifier = Modifier.fillMaxWidth()) {
                         ButtonLabel(stringResource(R.string.rules_copy_settings))
-                    }
-                }
-
-                if (onAddPrivacy != null) {
-                    TextButton(onClick = onAddPrivacy, modifier = Modifier.fillMaxWidth()) {
-                        ButtonLabel(stringResource(R.string.privacy_add_for_app))
                     }
                 }
 

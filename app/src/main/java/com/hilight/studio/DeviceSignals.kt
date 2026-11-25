@@ -20,8 +20,10 @@ data class DeviceSignalSettings(
     val fullPercent: Int = 100,
     val dndEnabled: Boolean = false,
     val dndColor: Int = 0xFF7C4DFF.toInt(),
+    val dndPattern: Pattern = Pattern.PULSE,
     val callsEnabled: Boolean = false,
     val callColor: Int = 0xFF00E676.toInt(),
+    val callPattern: Pattern = Pattern.BLINK,
 )
 
 internal fun chargingSignalLook(settings: DeviceSignalSettings, percent: Int): Ambient = Ambient(
@@ -57,8 +59,10 @@ class DeviceSignals(
         fullPercent = prefs.getInt("signals.fullPercent", 100).coerceIn(1, 100),
         dndEnabled = prefs.getBoolean("signals.dndEnabled", false),
         dndColor = prefs.getInt("signals.dndColor", 0xFF7C4DFF.toInt()),
+        dndPattern = Pattern.of(prefs.getString("signals.dndPattern", "pulse") ?: "pulse"),
         callsEnabled = prefs.getBoolean("signals.callsEnabled", false),
         callColor = prefs.getInt("signals.callColor", 0xFF00E676.toInt()),
+        callPattern = Pattern.of(prefs.getString("signals.callPattern", "blink") ?: "blink"),
     ))
     val settings: StateFlow<DeviceSignalSettings> = mutableSettings.asStateFlow()
     private var masterEnabled = false
@@ -112,8 +116,10 @@ class DeviceSignals(
             .putInt("signals.fullPercent", next.fullPercent)
             .putBoolean("signals.dndEnabled", next.dndEnabled)
             .putInt("signals.dndColor", next.dndColor)
+            .putString("signals.dndPattern", next.dndPattern.key)
             .putBoolean("signals.callsEnabled", next.callsEnabled)
             .putInt("signals.callColor", next.callColor)
+            .putString("signals.callPattern", next.callPattern.key)
             .apply()
         mutableSettings.value = next
         if (!next.dndEnabled) cancel(OWNER_DND)
@@ -138,7 +144,13 @@ class DeviceSignals(
         val activated = dndWasActivated(previousFilter, filter)
         previousFilter = filter
         if (masterEnabled && settings.value.dndEnabled && activated) {
-            show(OWNER_DND, Ambient(pattern = Pattern.PULSE, color = settings.value.dndColor, speedMs = 1000), SIGNAL_DURATION_MS)
+            show(OWNER_DND, Ambient(pattern = settings.value.dndPattern, color = settings.value.dndColor, speedMs = 1000), SIGNAL_DURATION_MS)
+        }
+    }
+
+    fun onCallSignal() {
+        if (masterEnabled && settings.value.callsEnabled) {
+            show(OWNER_CALL, Ambient(pattern = settings.value.callPattern, color = settings.value.callColor, speedMs = 800), SIGNAL_DURATION_MS)
         }
     }
 
