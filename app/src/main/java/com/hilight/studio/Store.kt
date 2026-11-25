@@ -1689,9 +1689,6 @@ class Store private constructor(private val app: Context) {
 
         if (!nowFaceDown && activeAlertFaceDownGated) cancelAlert()
         if (wasFaceDown != nowFaceDown) {
-            if (!wasFaceDown && nowFaceDown) {
-                deviceSignals.onFaceDown()
-            }
             refreshSuppression(armOnRelease = !wasFaceDown && nowFaceDown && _faceDownOnly.value)
         }
     }

@@ -77,12 +77,12 @@ fun DeviceSignalsSection(store: Store) {
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            ToggleRow("Indicatore Batteria (al capovolgimento)", settings.faceDownBatteryEnabled) {
-                store.deviceSignals.updateSettings { s -> s.copy(faceDownBatteryEnabled = it) }
+            ToggleRow("Indicatore Batteria all'attivazione DND", settings.dndBatteryEnabled) {
+                store.deviceSignals.updateSettings { s -> s.copy(dndBatteryEnabled = it) }
             }
-            if (settings.faceDownBatteryEnabled) {
+            if (settings.dndBatteryEnabled) {
                 Text(
-                    text = "Mostra per 2 secondi il livello di carica sugli 8 LED (verde >30%, arancione <=30%, rosso <=15%) non appena appoggi il telefono a faccia in giù.",
+                    text = "Mostra per 2 secondi lo stato della batteria quando si attiva il Non Disturbare (DND):\n• < 25%: 2 LED Rossi\n• 25% - 49%: 4 LED Arancioni\n• 50% - 74%: 6 LED Ciano\n• 75% - 100%: 8 LED Verdi",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

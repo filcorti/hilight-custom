@@ -20,7 +20,7 @@ data class DeviceSignalSettings(
     val chargingColor: Int = 0xFF2979FF.toInt(),
     val chargedColor: Int = 0xFF00E676.toInt(),
     val fullPercent: Int = 100,
-    val faceDownBatteryEnabled: Boolean = true,
+    val dndBatteryEnabled: Boolean = true,
     val callsEnabled: Boolean = false,
     val callColor: Int = 0xFF00E676.toInt(),
     val callPattern: Pattern = Pattern.BLINK,
@@ -31,6 +31,13 @@ internal fun chargingSignalLook(settings: DeviceSignalSettings, percent: Int): A
     color = if (percent >= settings.fullPercent) settings.chargedColor else settings.chargingColor,
     speedMs = 600,
 )
+
+internal fun dndWasActivated(previous: Int?, current: Int): Boolean =
+    previous == NotificationManager.INTERRUPTION_FILTER_ALL && current in listOf(
+        NotificationManager.INTERRUPTION_FILTER_PRIORITY,
+        NotificationManager.INTERRUPTION_FILTER_ALARMS,
+        NotificationManager.INTERRUPTION_FILTER_NONE,
+    )
 
 /** Without a listener observation, Respect DND must not become permission to light up. */
 internal fun dndBlocksSignals(filter: Int?): Boolean =
@@ -50,7 +57,7 @@ class DeviceSignals(
         chargingColor = prefs.getInt("signals.chargingColor", 0xFF2979FF.toInt()),
         chargedColor = prefs.getInt("signals.chargedColor", 0xFF00E676.toInt()),
         fullPercent = prefs.getInt("signals.fullPercent", 100).coerceIn(1, 100),
-        faceDownBatteryEnabled = prefs.getBoolean("signals.faceDownBatteryEnabled", true),
+        dndBatteryEnabled = prefs.getBoolean("signals.dndBatteryEnabled", true),
         callsEnabled = prefs.getBoolean("signals.callsEnabled", false),
         callColor = prefs.getInt("signals.callColor", 0xFF00E676.toInt()),
         callPattern = Pattern.of(prefs.getString("signals.callPattern", "blink") ?: "blink"),
@@ -105,13 +112,13 @@ class DeviceSignals(
             .putInt("signals.chargingColor", next.chargingColor)
             .putInt("signals.chargedColor", next.chargedColor)
             .putInt("signals.fullPercent", next.fullPercent)
-            .putBoolean("signals.faceDownBatteryEnabled", next.faceDownBatteryEnabled)
+            .putBoolean("signals.dndBatteryEnabled", next.dndBatteryEnabled)
             .putBoolean("signals.callsEnabled", next.callsEnabled)
             .putInt("signals.callColor", next.callColor)
             .putString("signals.callPattern", next.callPattern.key)
             .apply()
         mutableSettings.value = next
-        if (!next.faceDownBatteryEnabled) cancel(OWNER_BATTERY_GAUGE)
+        if (!next.dndBatteryEnabled) cancel(OWNER_BATTERY_GAUGE)
         if (!next.callsEnabled) cancel(OWNER_CALL)
         syncBatteryRegistration()
         if (old.chargingColor != next.chargingColor || old.chargedColor != next.chargedColor || old.fullPercent != next.fullPercent) {
@@ -130,16 +137,15 @@ class DeviceSignals(
     }
 
     fun onInterruptionFilterChanged(filter: Int) {
+        val activated = dndWasActivated(previousFilter, filter)
         previousFilter = filter
+        if (masterEnabled && settings.value.dndBatteryEnabled && activated) {
+            triggerBatteryGauge()
+        }
     }
 
-    @Volatile private var lastFaceDownGaugeTimeMs = 0L
-
-    fun onFaceDown(batteryPct: Int = -1) {
-        if (!masterEnabled || !settings.value.faceDownBatteryEnabled) return
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastFaceDownGaugeTimeMs < FACE_DOWN_COOLDOWN_MS) return
-        lastFaceDownGaugeTimeMs = now
+    fun triggerBatteryGauge(batteryPct: Int = -1) {
+        if (!masterEnabled || !settings.value.dndBatteryEnabled) return
 
         val currentPct = if (batteryPct >= 0) batteryPct else {
             val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
@@ -148,11 +154,13 @@ class DeviceSignals(
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
             if (level >= 0 && scale > 0) (level * 100) / scale else 50
         }
-        val activeLeds = ((currentPct / 100f) * 8).roundToInt().coerceIn(1, 8)
-        val color = when {
-            currentPct <= 15 -> 0xFFFF1744.toInt() // Red warning
-            currentPct <= 30 -> 0xFFFF6D00.toInt() // Amber
-            else -> 0xFF00E676.toInt()            // Emerald green
+
+        // 4 color steps: <25 (2 LEDs Red), 25-49 (4 LEDs Orange), 50-74 (6 LEDs Cyan), 75-100 (8 LEDs Green)
+        val (activeLeds, color) = when {
+            currentPct < 25 -> 2 to 0xFFFF1744.toInt()  // Red (<25%)
+            currentPct < 50 -> 4 to 0xFFFF6D00.toInt()  // Orange (25-49%)
+            currentPct < 75 -> 6 to 0xFF00E5FF.toInt()  // Cyan (50-74%)
+            else -> 8 to 0xFF00E676.toInt()             // Emerald Green (75-100%)
         }
         val perLed = List(8) { i -> if (i < activeLeds) color else 0xFF000000.toInt() }
         show(

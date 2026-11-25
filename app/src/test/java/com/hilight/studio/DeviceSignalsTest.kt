@@ -7,7 +7,7 @@ class DeviceSignalsTest {
     @Test fun existingInstallationsDoNotEnableSignals() {
         val settings = DeviceSignalSettings()
         assertFalse(settings.chargingEnabled)
-        assertTrue(settings.faceDownBatteryEnabled)
+        assertTrue(settings.dndBatteryEnabled)
         assertFalse(settings.callsEnabled)
     }
 
