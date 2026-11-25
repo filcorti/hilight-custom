@@ -29,6 +29,8 @@ internal sealed interface UpdateCheckResult {
 internal object GitHubUpdateChecker {
     private const val RELEASES_API =
         "https://api.github.com/repos/filcorti/hilight-custom/releases"
+    private const val TAGS_API =
+        "https://api.github.com/repos/filcorti/hilight-custom/tags"
     internal const val RELEASES_PAGE =
         "https://github.com/filcorti/hilight-custom/releases/tag/"
 
@@ -49,10 +51,10 @@ internal object GitHubUpdateChecker {
         runCatching { Log.w(tag, msg) }.onFailure { println("[$tag] WARNING: $msg") }
     }
 
-    fun check(currentVersionName: String): UpdateCheckResult {
+    private fun fetchJson(apiUrl: String, currentVersionName: String): String? {
         var connection: HttpURLConnection? = null
         return try {
-            val url = URL(RELEASES_API)
+            val url = URL(apiUrl)
             logD("UpdateChecker", "Querying URL: $url")
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -65,28 +67,25 @@ internal object GitHubUpdateChecker {
             val responseCode = connection.responseCode
             logD("UpdateChecker", "HTTP Response Code: $responseCode")
 
-            if (responseCode == 404) {
-                connection.errorStream?.close()
-                return UpdateCheckResult.NoPublishedRelease
-            }
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                logE("GitHubUpdateChecker", "HTTP Error: $responseCode")
-                connection.errorStream?.close()
-                UpdateCheckResult.Failed
-            } else {
-                val response = connection.inputStream.bufferedReader(Charsets.UTF_8).use {
-                    it.readText()
-                }
-                logD("UpdateChecker", "Response JSON received (length: ${response.length})")
-                logD("UpdateChecker", "Response JSON payload: $response")
-                resolve(currentVersionName, response)
-            }
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            } else null
         } catch (e: Exception) {
-            logE("GitHubUpdateChecker", "Network or connection error", e)
-            UpdateCheckResult.Failed
+            logE("GitHubUpdateChecker", "Network error fetching $apiUrl", e)
+            null
         } finally {
             connection?.disconnect()
         }
+    }
+
+    fun check(currentVersionName: String): UpdateCheckResult {
+        val releasesResponse = fetchJson(RELEASES_API, currentVersionName)
+        if (releasesResponse != null) {
+            val res = resolve(currentVersionName, releasesResponse)
+            if (res !is UpdateCheckResult.NoPublishedRelease) return res
+        }
+        val tagsResponse = fetchJson(TAGS_API, currentVersionName) ?: return UpdateCheckResult.Failed
+        return resolve(currentVersionName, tagsResponse)
     }
 
     internal fun resolve(
@@ -121,7 +120,7 @@ internal object GitHubUpdateChecker {
             val entry = releasesArray.optJSONObject(i) ?: continue
             if (entry.optBoolean("draft", false)) continue
 
-            val tag = entry.optString("tag_name", "")
+            val tag = entry.optString("tag_name", entry.optString("name", ""))
             val version = ReleaseVersion.parse(tag)
             if (version == null) {
                 logD("UpdateChecker", "Skipping release with unparsable tag: $tag")
