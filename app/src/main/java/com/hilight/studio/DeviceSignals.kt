@@ -8,12 +8,12 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Optional signals, independent of existing app rules and disabled for existing installations. */
 /** Optional signals, independent of existing app rules and disabled for existing installations. */
 data class DeviceSignalSettings(
     val chargingEnabled: Boolean = false,
@@ -133,8 +133,14 @@ class DeviceSignals(
         previousFilter = filter
     }
 
+    @Volatile private var lastFaceDownGaugeTimeMs = 0L
+
     fun onFaceDown(batteryPct: Int = -1) {
         if (!masterEnabled || !settings.value.faceDownBatteryEnabled) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFaceDownGaugeTimeMs < FACE_DOWN_COOLDOWN_MS) return
+        lastFaceDownGaugeTimeMs = now
+
         val currentPct = if (batteryPct >= 0) batteryPct else {
             val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
             val intent = app.registerReceiver(null, filter)
@@ -191,5 +197,6 @@ class DeviceSignals(
         const val OWNER_CALL = "device-signal:call"
         const val SIGNAL_DURATION_MS = 2000
         private const val CHARGING_INTERVAL_MS = 15_000L
+        private const val FACE_DOWN_COOLDOWN_MS = 25_000L
     }
 }
