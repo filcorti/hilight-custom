@@ -107,7 +107,9 @@ fun AppRulesScreen(store: Store) {
             Toast.makeText(ctx, R.string.rules_both_triggers_exist, Toast.LENGTH_SHORT).show()
         } else {
             scope.launch {
-                val dominantColor = AppColorExtractor.getDominantColorForPackage(ctx, app.pkg)
+                val dominantColor = withContext(Dispatchers.IO) {
+                    AppColorExtractor.getDominantColorForPackage(ctx, app.pkg)
+                }
                 editing = RuleEditorState(draft.copy(color = dominantColor), isNew = true)
             }
         }

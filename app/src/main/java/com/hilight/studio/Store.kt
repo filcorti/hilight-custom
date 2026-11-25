@@ -477,7 +477,7 @@ class Store private constructor(private val app: Context) {
     private val _rules = MutableStateFlow(loadRules())
     val rules: StateFlow<List<AppRule>> = _rules.asStateFlow()
 
-    private val _privacyRules = MutableStateFlow(loadPrivacyRules())
+    private val _privacyRules = MutableStateFlow<List<PrivacyRule>>(emptyList())
     val privacyRules: StateFlow<List<PrivacyRule>> = _privacyRules.asStateFlow()
 
     /**
@@ -1058,21 +1058,6 @@ class Store private constructor(private val app: Context) {
         _rules.value = _rules.value.filterNot { it.id == rule.id }
         saveRules()
         syncForegroundWatcher()
-    }
-
-    fun upsertPrivacyRule(rule: PrivacyRule, replacing: PrivacyRule? = null) {
-        val stale = setOfNotNull(replacing?.id, rule.id)
-        val out = _privacyRules.value.filterNot { it.id in stale }.toMutableList()
-        out += rule
-        _privacyRules.value = out
-        savePrivacyRules()
-        pushCurrent(arm = false)
-    }
-
-    fun removePrivacyRule(rule: PrivacyRule) {
-        _privacyRules.value = _privacyRules.value.filterNot { it.id == rule.id }
-        savePrivacyRules()
-        pushCurrent(arm = false)
     }
 
     fun savePreset(name: String) {
@@ -3143,27 +3128,6 @@ class Store private constructor(private val app: Context) {
             Log.d(TAG, "saveRules took ${SystemClock.elapsedRealtime() - start}ms")
         }
         pruneLastMatch()
-    }
-
-    private fun loadPrivacyRules(): List<PrivacyRule> =
-        prefs.getString("privacyRules", null)?.let { raw ->
-            runCatching {
-                val a = JSONArray(raw)
-                (0 until a.length()).mapNotNull { i ->
-                    runCatching { PrivacyRule.fromJson(a.getJSONObject(i)) }.getOrNull()
-                }
-            }.getOrNull()
-        } ?: emptyList()
-
-    private fun savePrivacyRules() {
-        val rulesSnapshot = _privacyRules.value
-        backgroundExecutor.execute {
-            val start = SystemClock.elapsedRealtime()
-            val a = JSONArray()
-            rulesSnapshot.forEach { a.put(it.toPrefsJson()) }
-            prefs.edit().putString("privacyRules", a.toString()).apply()
-            Log.d(TAG, "savePrivacyRules took ${SystemClock.elapsedRealtime() - start}ms")
-        }
     }
 
     private fun loadConversations(): List<ConversationRef> =

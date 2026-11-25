@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -103,14 +104,14 @@ fun PixelCard(
             .pressSquash(pressed)
             .clip(shape)
             .clickable(interactionSource = interaction, indication = ripple(), onClick = onClick)
-        Box(base.background(color)) {
+        Box(base.background(color).border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), shape)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 content()
             }
         }
         return
     }
-    Box(base.background(color, shape)) {
+    Box(base.background(color, shape).border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), shape)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             content()
         }

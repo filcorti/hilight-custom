@@ -64,27 +64,27 @@ private val FallbackLight = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE6E0E9),
 )
 
-/** Rounder than stock Material 3 — Pixel's system surfaces sit around 28-32dp. */
+/** Material 3 Expressive shapes: extra rounded container surfaces. */
 private val PixelShapes = Shapes(
-    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-    small = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-    medium = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-    large = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(38.dp),
+    extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+    small = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+    large = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(40.dp),
 )
 
-/** Slightly tighter tracking and heavier headlines, closer to Pixel's system typography. */
+/** Material 3 Expressive typography: bolder headlines and medium weight body. */
 private val PixelTypography = Typography().let { base ->
     base.copy(
-        displaySmall = base.displaySmall.copy(fontWeight = FontWeight.Normal, letterSpacing = (-0.5).sp),
-        headlineLarge = base.headlineLarge.copy(fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp),
-        headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = (-0.2).sp),
-        headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.Medium),
-        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
-        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.Medium),
-        titleSmall = base.titleSmall.copy(fontWeight = FontWeight.Medium),
-        labelLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 0.1.sp),
-        bodyMedium = base.bodyMedium.copy(lineHeight = 21.sp),
+        displaySmall = base.displaySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp),
+        headlineLarge = base.headlineLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
+        headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp),
+        headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.1).sp),
+        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+        titleSmall = base.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+        labelLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp, letterSpacing = 0.1.sp),
+        bodyMedium = base.bodyMedium.copy(lineHeight = 22.sp),
     )
 }
 
