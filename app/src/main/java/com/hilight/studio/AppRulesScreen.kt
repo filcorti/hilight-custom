@@ -630,9 +630,10 @@ private fun RuleEditorDialog(
                 TextButton(onClick = { pickingPreset = true }, modifier = Modifier.fillMaxWidth()) {
                     ButtonLabel(stringResource(R.string.rules_use_saved_look))
                 }
-                PatternCarousel(
+                SegmentedSelector(
+                    options = listOf(Pattern.BLINK, Pattern.CHASE, Pattern.RAINBOW, Pattern.METER, Pattern.FIRE, Pattern.SOLID),
                     selected = r.pattern,
-                    options = Pattern.entries.filter { it != Pattern.OFF && it != Pattern.CUSTOM },
+                    label = { stringResource(it.shortLabelRes) },
                     onSelect = { r = r.copy(pattern = it) },
                 )
 

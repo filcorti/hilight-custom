@@ -133,7 +133,7 @@ private fun App(store: Store, startInSetup: Boolean = false) {
         owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 store.refreshStatus()
-                delay(1500)
+                delay(3500)
             }
         }
     }

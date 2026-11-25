@@ -77,21 +77,14 @@ fun DeviceSignalsSection(store: Store) {
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            ToggleRow(stringResource(R.string.device_signals_dnd), settings.dndEnabled) {
-                store.deviceSignals.updateSettings { s -> s.copy(dndEnabled = it) }
+            ToggleRow("Indicatore Batteria (al capovolgimento)", settings.faceDownBatteryEnabled) {
+                store.deviceSignals.updateSettings { s -> s.copy(faceDownBatteryEnabled = it) }
             }
-            if (settings.dndEnabled) {
+            if (settings.faceDownBatteryEnabled) {
                 Text(
-                    text = stringResource(R.string.device_signals_dnd_description),
+                    text = "Mostra per 2 secondi il livello di carica sugli 8 LED (verde >30%, arancione <=30%, rosso <=15%) non appena appoggi il telefono a faccia in giù.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                ColorPicker(settings.dndColor, { color -> store.deviceSignals.updateSettings { it.copy(dndColor = color) } })
-                Text("Modalità Effetto DND", style = MaterialTheme.typography.bodyMedium)
-                PatternCarousel(
-                    selected = settings.dndPattern,
-                    options = listOf(Pattern.BLINK, Pattern.CHASE, Pattern.RAINBOW, Pattern.METER, Pattern.FIRE, Pattern.PULSE),
-                    onSelect = { pattern -> store.deviceSignals.updateSettings { it.copy(dndPattern = pattern) } }
                 )
             }
             ToggleRow(stringResource(R.string.device_signals_calls), settings.callsEnabled) {
@@ -105,10 +98,11 @@ fun DeviceSignalsSection(store: Store) {
                 )
                 ColorPicker(settings.callColor, { color -> store.deviceSignals.updateSettings { it.copy(callColor = color) } })
                 Text("Modalità Effetto Chiamate", style = MaterialTheme.typography.bodyMedium)
-                PatternCarousel(
+                SegmentedSelector(
+                    options = listOf(Pattern.BLINK, Pattern.CHASE, Pattern.RAINBOW, Pattern.METER, Pattern.FIRE),
                     selected = settings.callPattern,
-                    options = listOf(Pattern.BLINK, Pattern.CHASE, Pattern.RAINBOW, Pattern.METER, Pattern.FIRE, Pattern.PULSE),
-                    onSelect = { pattern -> store.deviceSignals.updateSettings { it.copy(callPattern = pattern) } }
+                    label = { stringResource(it.shortLabelRes) },
+                    onSelect = { pattern -> store.deviceSignals.updateSettings { it.copy(callPattern = pattern) } },
                 )
             }
         }

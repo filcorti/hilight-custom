@@ -1689,8 +1689,9 @@ class Store private constructor(private val app: Context) {
 
         if (!nowFaceDown && activeAlertFaceDownGated) cancelAlert()
         if (wasFaceDown != nowFaceDown) {
-            // Placing the phone face down is a deliberate action, like turning the screen off, so it
-            // may open a new bounded ambient window. Leaving the gate never arms anything.
+            if (!wasFaceDown && nowFaceDown) {
+                deviceSignals.onFaceDown()
+            }
             refreshSuppression(armOnRelease = !wasFaceDown && nowFaceDown && _faceDownOnly.value)
         }
     }
